@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8" />
+<title>TactIQ — محرّر خريطة الهدف</title>
+<style>
+  @font-face { font-family:'Brink';   src:url('../../design-mockups/Brink.otf')   format('opentype'); }
+  @font-face { font-family:'Bisbee';   src:url('../../design-mockups/Bisbee.ttf')  format('truetype'); }
+  :root{ --navy:#0a1420; --green:#25C971; --amber:#F0A23C; --text:#eaf3ee; --muted:#8fa39b; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ background:#05080c; color:var(--text); font-family:'Bisbee',Arial,sans-serif; display:flex; gap:16px; padding:16px; direction:rtl; }
+  .stage{ flex:0 0 auto; }
+  .panel{ flex:1; min-width:320px; max-width:460px; background:#0e1a13; border:1px solid #24382c; border-radius:14px; padding:16px; height:fit-content; }
+  h2{ font-family:'Brink'; font-size:22px; margin-bottom:10px; } h2 .iq{ color:var(--green); }
+  .row{ margin:10px 0; } label{ font-size:13px; color:var(--muted); display:block; margin-bottom:4px; }
+  input,select{ width:100%; padding:8px; border-radius:8px; border:1px solid #2a4034; background:#06110b; color:var(--text); font-family:'Bisbee'; }
+  .btns{ display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+  button{ font-family:'Bisbee'; font-weight:800; font-size:13px; padding:8px 12px; border-radius:8px; border:1px solid #2a4034; background:#06110b; color:var(--text); cursor:pointer; }
+  button.p{ background:var(--green); color:#04120a; border-color:var(--green); }
+  button.a{ background:var(--amber); color:#04120a; border-color:var(--amber); }
+  .hint{ font-size:12px; color:var(--muted); line-height:1.7; margin-top:6px; }
+  .steps{ margin-top:8px; max-height:220px; overflow:auto; }
+  .stepItem{ display:flex; align-items:center; gap:8px; background:#06110b; border:1px solid #24382c; border-radius:8px; padding:6px 10px; margin-bottom:6px; font-size:13px; }
+  .stepItem .x{ margin-inline-start:auto; color:#ff8a99; cursor:pointer; font-weight:800; }
+  textarea{ width:100%; height:90px; background:#06110b; color:var(--text); border:1px solid #2a4034; border-radius:8px; padding:8px; font-family:monospace; font-size:11px; direction:ltr; }
+  svg{ background:#0a1420; border-radius:10px; }
+  .mode{ color:var(--amber); font-weight:800; font-size:13px; min-height:18px; }
+  circle.pl{ cursor:grab; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg id="svg" width="540" height="675" viewBox="0 0 1080 1350"></svg>
+</div>
+
+<div class="panel">
+  <h2>محرّر خريطة الهدف — TACT<span class="iq">IQ</span></h2>
+
+  <div class="row"><label>العنوان</label><input id="fTitle" value="HOW SPAIN SCORED"></div>
+  <div class="row"><label>السطر الفرعيّ (اللاعب/الدقيقة)</label><input id="fSub" value="Oyarzabal 22'"></div>
+  <div class="btns">
+    <span style="align-self:center;font-size:13px;color:var(--muted)">لون A:</span><input type="color" id="cHome" value="#e01e2b" style="width:44px;padding:2px">
+    <span style="align-self:center;font-size:13px;color:var(--muted)">لون B:</span><input type="color" id="cAway" value="#eaeaea" style="width:44px;padding:2px">
+  </div>
+
+  <div class="btns">
+    <button class="p" onclick="addPlayer('home')">➕ لاعب A</button>
+    <button onclick="addPlayer('away')">➕ لاعب B</button>
+    <button class="a" onclick="startStep('pass')">➡️ تمريرة</button>
+    <button class="a" onclick="startStep('run')">🏃 عدوة</button>
+    <button class="a" onclick="startStep('shot')">⚽ تسديد</button>
+  </div>
+  <div class="mode" id="mode"></div>
+  <div class="hint">اسحب اللاعبين لمكانهم. لإضافة خطوة: اضغط الزرّ ثم اضغط نقطة البداية ثم النهاية. دبل-كليك على لاعب لتغيير رقمه.</div>
+
+  <div class="row"><label>الخطوات (بالترتيب)</label><div class="steps" id="stepsList"></div></div>
+
+  <div class="btns">
+    <button class="p" onclick="preview()">▶️ معاينة متحركة</button>
+    <button onclick="exportJSON()">💾 نسخ JSON</button>
+    <button onclick="downloadJSON()">⬇️ تنزيل play.json</button>
+    <button onclick="resetAll()">🗑️ تفريغ</button>
+  </div>
+  <div class="row"><label>JSON (للـ gen-play.js)</label><textarea id="out" readonly></textarea></div>
+  <div class="row"><label>الكابشن</label><textarea id="fCap" style="direction:rtl;font-family:'Bisbee'">شرح الهدف التكتيكيّ هون...</textarea></div>
+</div>
+<script src="goal-editor.js"></script>
+</body>
+</html>

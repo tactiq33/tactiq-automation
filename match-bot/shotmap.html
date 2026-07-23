@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8" />
+<style>
+  @font-face { font-family:'Brink';   src:url('../../design-mockups/Brink.otf')   format('opentype'); }
+  @font-face { font-family:'Bisbee';   src:url('../../design-mockups/Bisbee.ttf')  format('truetype'); }
+  :root{ --navy:#0a1420; --green:#25C971; --amber:#F0A23C; --text:#eaf3ee; --muted:#8fa39b; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ background:#05080c; font-family:'Bisbee',Arial,sans-serif; }
+  #card{ width:1080px; height:1350px; position:relative; background:linear-gradient(180deg,#0a1420,#0e2018); overflow:hidden; color:var(--text); }
+  .title{ position:absolute; top:34px; left:0; right:0; text-align:center; }
+  .title .h{ font-family:'Brink'; font-size:52px; letter-spacing:1px; }
+  .title .s{ font-size:26px; color:var(--amber); font-weight:800; margin-top:4px; }
+  .xgrow{ position:absolute; top:150px; left:60px; right:60px; display:flex; align-items:center; justify-content:space-between; }
+  .xgbox{ text-align:center; } .xgbox .t{ font-family:'Brink'; font-size:34px; } .xgbox .v{ font-family:'Brink'; font-size:70px; } .xgbox .l{ font-size:22px; color:var(--muted); font-weight:800; }
+  svg{ position:absolute; top:250px; left:0; }
+  .legend{ position:absolute; bottom:120px; left:0; right:0; text-align:center; font-size:24px; color:var(--muted); font-weight:700; }
+  .legend b{ color:var(--text); }
+  .brand{ position:absolute; bottom:44px; right:44px; font-family:'Brink'; font-size:38px; } .brand .iq{ color:var(--green); }
+</style>
+</head>
+<body>
+<div id="card">
+  <div class="title"><div class="h" id="ttl"></div><div class="s" id="sub"></div></div>
+  <div class="xgrow">
+    <div class="xgbox"><div class="t" id="hn"></div><div class="v" id="hxg" style="color:var(--green)"></div><div class="l">xG</div></div>
+    <div class="xgbox"><div class="l">SHOT MAP</div><div class="t">⚽</div></div>
+    <div class="xgbox"><div class="t" id="an"></div><div class="v" id="axg" style="color:var(--amber)"></div><div class="l">xG</div></div>
+  </div>
+  <svg id="svg" width="1080" height="820" viewBox="0 0 1080 820"></svg>
+  <div class="legend">حجم الدائرة = <b>xG</b> · <span style="color:var(--green)">●</span> هدف · <span style="color:#eaf3ee">●</span> على المرمى · <span style="color:var(--muted)">●</span> خارج/مصدود</div>
+  <div class="brand">TACT<span class="iq">IQ</span></div>
+</div>
+<script>
+  var DEFAULT = {
+    title: 'SPAIN 2-0 FRANCE', sub: 'World Cup — Semi-final',
+    homeName: 'SPAIN', awayName: 'FRANCE', homeXG: '1.84', awayXG: '0.62',
+    shots: [
+      { x: 0.86, y: 0.42, xg: 0.34, team: 'home', result: 'goal' },
+      { x: 0.78, y: 0.55, xg: 0.12, team: 'home', result: 'saved' },
+      { x: 0.9, y: 0.5, xg: 0.55, team: 'home', result: 'goal' },
+      { x: 0.7, y: 0.3, xg: 0.06, team: 'home', result: 'miss' },
+      { x: 0.82, y: 0.62, xg: 0.2, team: 'home', result: 'blocked' },
+      { x: 0.84, y: 0.48, xg: 0.28, team: 'away', result: 'saved' },
+      { x: 0.75, y: 0.4, xg: 0.09, team: 'away', result: 'miss' },
+      { x: 0.8, y: 0.6, xg: 0.15, team: 'away', result: 'blocked' }
+    ]
+  };
+  var D = window.SHOTS_OVERRIDE || DEFAULT;
+  var NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('svg');
+  function el(t, a){ var e = document.createElementNS(NS, t); for(var k in a) e.setAttribute(k, a[k]); return e; }
+
+  // نصف ملعب رأسيّ للهجوم لأعلى (نعرض تسديدات الفريقين على نفس المرمى للمقارنة)
+  var L=40,R=1040,T=20,B=800;
+  svg.appendChild(el('rect',{x:L,y:T,width:R-L,height:B-T,rx:12,fill:'#123d24',stroke:'rgba(255,255,255,0.4)','stroke-width':3}));
+  // منطقة الجزاء (فوق)
+  var bw=520,bh=210; svg.appendChild(el('rect',{x:(L+R)/2-bw/2,y:T,width:bw,height:bh,fill:'none',stroke:'rgba(255,255,255,0.35)','stroke-width':2}));
+  var sw=240,sh=80; svg.appendChild(el('rect',{x:(L+R)/2-sw/2,y:T,width:sw,height:sh,fill:'none',stroke:'rgba(255,255,255,0.35)','stroke-width':2}));
+  // المرمى
+  var gW=180; svg.appendChild(el('rect',{x:(L+R)/2-gW/2,y:T-20,width:gW,height:20,fill:'rgba(255,255,255,0.15)',stroke:'#fff','stroke-width':4}));
+  // قوس الجزاء
+  svg.appendChild(el('path',{d:'M '+((L+R)/2-90)+' '+(T+bh)+' A 90 90 0 0 0 '+((L+R)/2+90)+' '+(T+bh),fill:'none',stroke:'rgba(255,255,255,0.35)','stroke-width':2}));
+
+  // نطاق التسديدات: نصف الملعب الهجوميّ (x من 0.5 لـ1 بمقياس understat → نحوّله للعمق)
+  // x understat: 1 = خطّ المرمى. نعكسه للعمق (y بالرسم). y understat = العرض.
+  function pos(s){
+    var depth = (1 - s.x);            // 0 عند المرمى
+    var py = T + depth * (B-T) * 2;   // كل ما x أقرب لـ1، أقرب للمرمى (فوق)
+    if(py > B-20) py = B-20;
+    var px = L + s.y * (R-L);
+    return { px:px, py:py };
+  }
+  function color(s){ return s.result==='goal' ? '#25C971' : s.result==='saved' ? '#eaf3ee' : '#8fa39b'; }
+
+  (D.shots||[]).forEach(function(s){
+    var p = pos(s);
+    var r = 14 + Math.sqrt(s.xg||0.05) * 60;
+    var c = color(s);
+    var isGoal = s.result==='goal';
+    var dot = el('circle',{ cx:p.px, cy:p.py, r:r, fill:c, 'fill-opacity': isGoal?0.9:0.35, stroke:c, 'stroke-width': isGoal?4:2 });
+    svg.appendChild(dot);
+    if(isGoal){ var st=el('text',{x:p.px,y:p.py+8,fill:'#04120a','font-size':26,'font-weight':800,'text-anchor':'middle'}); st.textContent='⚽'; svg.appendChild(st); }
+  });
+
+  document.getElementById('ttl').textContent = D.title||'';
+  document.getElementById('sub').textContent = D.sub||'';
+  document.getElementById('hn').textContent = D.homeName||''; document.getElementById('an').textContent = D.awayName||'';
+  document.getElementById('hxg').textContent = D.homeXG||''; document.getElementById('axg').textContent = D.awayXG||'';
+</script>
+</body>
+</html>

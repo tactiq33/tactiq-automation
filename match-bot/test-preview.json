@@ -1,0 +1,9 @@
+{
+  "type": "preview",
+  "competition": "La Liga",
+  "stage": "Regular Season",
+  "time": "22:00",
+  "title": "EL CLASICO",
+  "home": { "name": "Real Madrid", "nameEn": "Real Madrid" },
+  "away": { "name": "Barcelona", "nameEn": "Barcelona" }
+}

@@ -1,0 +1,13 @@
+{
+  "type": "goal",
+  "competition": "WORLD CUP 2026",
+  "stage": "نصف النهائي",
+  "player": "كيليان مبابي",
+  "playerEn": "Kylian Mbappe",
+  "playerDesc": "fast explosive young forward, confident expression",
+  "team": "فرنسا",
+  "teamCode": "fr",
+  "min": 88,
+  "home": { "name": "فرنسا", "code": "fr", "score": 2 },
+  "away": { "name": "المغرب", "code": "ma", "score": 1 }
+}

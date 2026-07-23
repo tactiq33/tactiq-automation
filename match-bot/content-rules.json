@@ -1,0 +1,76 @@
+{
+  "_comment": "قواعد المحتوى — البوت يقرّر على أساسها: aiDesign (بوستر Gemini) / resultCard (كرت قالب) / skip. عدّل القوائم حسب ذوقك.",
+
+  "priorityLeagues": {
+    "World Cup": 10,
+    "UEFA Champions League": 10,
+    "Premier League": 10,
+    "European Championship": 9,
+    "Euro": 9,
+    "Copa America": 8,
+    "La Liga": 8,
+    "UEFA Nations League": 7,
+    "Serie A": 7,
+    "Bundesliga": 7,
+    "Africa Cup of Nations": 7,
+    "Ligue 1": 6,
+    "Europa League": 6,
+    "Saudi Pro League": 6,
+    "FIFA Club World Cup": 6,
+    "UEFA Super Cup": 6,
+    "Asian Cup": 6,
+    "Europa Conference League": 5,
+    "FA Cup": 5,
+    "Copa del Rey": 5,
+    "DFB Pokal": 4,
+    "Coppa Italia": 4,
+    "Coupe de France": 4,
+    "Community Shield": 4,
+    "Supercopa": 4,
+    "Super Cup": 4
+  },
+
+  "starPlayers": [
+    "Messi", "Ronaldo", "Salah", "Mbappe", "Haaland", "Bellingham",
+    "Vinicius", "Rodrygo", "Yamal", "Pedri", "Gavi", "Kane", "De Bruyne",
+    "Foden", "Saka", "Odegaard", "Rice", "Palmer", "Rodri", "Bruno Fernandes",
+    "Griezmann", "Dembele", "Nico Williams", "Benzema", "Neymar", "Lewandowski",
+    "Lautaro", "Leao", "Vlahovic", "Osimhen", "Kvaratskhelia", "Musiala",
+    "Wirtz", "Kimmich", "Musah", "Son", "Modric", "Van Dijk", "Alisson",
+    "Courtois", "Valverde", "Isak", "Gyokeres", "Mahrez", "Hakimi", "Kudus"
+  ],
+
+  "bigClubs": [
+    "Liverpool", "Manchester United", "Manchester City", "Arsenal", "Chelsea", "Tottenham",
+    "Real Madrid", "Barcelona", "Atletico Madrid", "Bayern Munich", "Borussia Dortmund",
+    "PSG", "Juventus", "Inter", "AC Milan", "Napoli",
+    "Al Nassr", "Al Hilal", "Al Ittihad", "Al Ahly"
+  ],
+
+  "rivalries": [
+    ["Liverpool", "Manchester United"],
+    ["Manchester City", "Manchester United"],
+    ["Arsenal", "Tottenham"],
+    ["Liverpool", "Everton"],
+    ["Chelsea", "Arsenal"],
+    ["Real Madrid", "Barcelona"],
+    ["Real Madrid", "Atletico Madrid"],
+    ["Inter", "AC Milan"],
+    ["Al Nassr", "Al Hilal"]
+  ],
+
+  "alwaysCoverTeams": ["Inter Miami"],
+
+  "knockoutKeywords": ["final", "semi", "quarter", "نهائي", "نصف", "ربع", "knockout", "round of 16", "ثمن"],
+
+  "eventTriggers": ["goal", "assist", "winning_goal", "red_card", "final", "transfer", "record", "milestone"],
+
+  "decision": {
+    "aiDesign": "نجم سجّل/صنع • أو ديربي/قمّة • أو إقصائيّات UCL/WC • أو انتقال كبير • أو رقم قياسيّ/إنجاز",
+    "resultCard": "نتيجة نهائيّة بدوري من priorityLeagues",
+    "skip": "غير هيك (يروح لمجمّع النتائج اليوميّ أو يتخطّى)"
+  },
+
+  "maxPostsPerDay": 8,
+  "focusNote": "الأولويّة القصوى: الدوري الإنجليزيّ + دوري الأبطال. للجمهور العربيّ: صلاح + الدوري السعوديّ."
+}

@@ -1,0 +1,39 @@
+name: TactIQ Auto Publish
+
+# ينشر المستحقّ تلقائيًّا بلا حاسوبك (على سيرفرات GitHub — مجّاني).
+# ملاحظة: توقيت cron بالـ UTC. عدّل الأوقات حسب توقيتك.
+on:
+  schedule:
+    # يشتغل يوميًّا مرّتين وينشر أي منشور/فيديو مستحقّ (publish.js يفلتر حسب الوقت).
+    - cron: '0 8 * * *'    # يوميًّا 08:00 UTC
+    - cron: '0 17 * * *'   # يوميًّا 17:00 UTC
+  workflow_dispatch: {}     # زرّ تشغيل يدويّ
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci --omit=dev || npm install --omit=dev
+      - name: Publish due posts
+        env:
+          POST_LANG: ${{ vars.POST_LANG }}
+          BASE_URL: ${{ vars.BASE_URL }}
+          VIDEO_BASE_URL: ${{ vars.VIDEO_BASE_URL }}
+          GRAPH_VERSION: ${{ vars.GRAPH_VERSION }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          TIKTOK_TOKEN: ${{ secrets.TIKTOK_TOKEN }}
+        run: node publish.js
+      - name: Commit updated schedule status
+        run: |
+          git config user.name "tactiq-bot"
+          git config user.email "bot@tactiq.local"
+          git add output/schedule.json || true
+          git commit -m "chore: update publish status [skip ci]" || echo "no changes"
+          git push || echo "nothing to push"

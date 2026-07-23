@@ -1,0 +1,13 @@
+{
+  "type": "goal",
+  "player": "Mikel Oyarzabal",
+  "playerEn": "Mikel Oyarzabal",
+  "team": "Spain",
+  "teamCode": "es",
+  "teamEn": "Spain",
+  "min": 22,
+  "competition": "World Cup",
+  "stage": "Semi-finals",
+  "home": { "name": "France", "code": "fr", "score": 0 },
+  "away": { "name": "Spain", "code": "es", "score": 1 }
+}

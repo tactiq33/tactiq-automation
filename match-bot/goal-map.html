@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8" />
+<style>
+  @font-face { font-family:'Brink';   src:url('../../design-mockups/Brink.otf')   format('opentype'); }
+  @font-face { font-family:'Bisbee';   src:url('../../design-mockups/Bisbee.ttf')  format('truetype'); }
+  :root{ --navy:#0a1420; --green:#25C971; --amber:#F0A23C; --text:#eaf3ee; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ background:#05080c; font-family:'Bisbee',Arial,sans-serif; }
+  #card{ width:1080px; height:1350px; position:relative; background:linear-gradient(180deg,#0a1420,#0e2018); overflow:hidden; }
+  .title{ position:absolute; top:30px; left:0; right:0; text-align:center; color:var(--text); z-index:3; }
+  .title .h{ font-family:'Brink'; font-size:50px; letter-spacing:1px; }
+  .title .s{ font-size:24px; color:var(--amber); font-weight:800; margin-top:2px; }
+  /* شريط الشرح تحت */
+  .banner{ position:absolute; left:40px; right:40px; bottom:36px; height:150px; background:#0e1a13; border:1px solid #24382c; border-inline-start:6px solid var(--green); border-radius:16px; padding:20px 26px; z-index:3; direction:rtl; }
+  .banner .step{ color:var(--green); font-weight:800; font-size:22px; letter-spacing:1px; }
+  .banner .lbl{ color:var(--text); font-size:40px; font-weight:800; margin-top:6px; font-family:'Brink'; }
+  .banner .ann{ display:inline-block; margin-top:10px; background:var(--amber); color:#0a1420; font-weight:800; font-size:22px; padding:4px 16px; border-radius:20px; opacity:0; transition:opacity .3s; }
+  .brand{ position:absolute; bottom:200px; right:40px; font-family:'Brink'; font-size:34px; color:var(--text); z-index:3; }
+  .brand .iq{ color:var(--green); }
+  #goalFlash{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'Brink'; font-size:220px; color:var(--green); opacity:0; z-index:4; text-shadow:0 0 40px rgba(37,201,113,0.6); transition:opacity .25s; }
+  svg{ position:absolute; top:0; left:0; z-index:1; }
+</style>
+</head>
+<body>
+<div id="card">
+  <div class="title"><div class="h" id="ttl"></div><div class="s" id="sub"></div></div>
+  <svg id="svg" width="1080" height="1350" viewBox="0 0 1080 1350"></svg>
+  <div class="brand">TACT<span class="iq">IQ</span></div>
+  <div class="banner"><div class="step" id="stepNo"></div><div class="lbl" id="stepLbl"></div><span class="ann" id="stepAnn"></span></div>
+  <div id="goalFlash">GOAL!</div>
+</div>
+
+<script>
+  var DEFAULT_PLAY = {
+    title: 'HOW SPAIN SCORED', sub: "Oyarzabal 22'",
+    homeColor: '#e01e2b', awayColor: '#eaeaea',
+    players: [
+      { x: 12, y: 22, n: '5', t: 'home' }, { x: 34, y: 30, n: '8', t: 'home' },
+      { x: 30, y: 55, n: '9', t: 'home' }, { x: 62, y: 66, n: '19', t: 'home' },
+      { x: 82, y: 88, n: '21', t: 'home' },
+      { x: 48, y: 44, n: '6', t: 'away' }, { x: 70, y: 78, n: '4', t: 'away' }
+    ],
+    steps: [
+      { from: [12, 22], to: [34, 30], label: 'Switch of play', type: 'pass' },
+      { from: [34, 30], to: [30, 55], label: 'Vertical pass', type: 'pass', annotation: 'PRESS BEATEN' },
+      { from: [30, 55], to: [62, 66], label: 'Line-break pass', type: 'pass' },
+      { from: [62, 66], to: [82, 88], label: 'Through ball', type: 'run', annotation: 'OFFSIDE TRAP BROKEN' },
+      { from: [82, 88], to: [50, 100], label: '1v1 finish', type: 'shot' }
+    ],
+    caption: ''
+  };
+  var P = window.PLAY_OVERRIDE || DEFAULT_PLAY;
+
+  var L = 40, R = 1040, T = 150, B = 1160;
+  function px(x){ return L + (x/100)*(R-L); }
+  function py(y){ return B - (y/100)*(B-T); }
+  var NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('svg');
+  function el(t, a){ var e = document.createElementNS(NS, t); for(var k in a) e.setAttribute(k, a[k]); return e; }
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  // ===== الملعب + المرمى =====
+  svg.appendChild(el('rect', { x:L, y:T, width:R-L, height:B-T, rx:12, fill:'#123d24', stroke:'rgba(255,255,255,0.45)', 'stroke-width':3 }));
+  svg.appendChild(el('line', { x1:L, y1:(T+B)/2, x2:R, y2:(T+B)/2, stroke:'rgba(255,255,255,0.3)', 'stroke-width':2 }));
+  svg.appendChild(el('circle', { cx:(L+R)/2, cy:(T+B)/2, r:85, fill:'none', stroke:'rgba(255,255,255,0.3)', 'stroke-width':2 }));
+  var boxW = 420, boxH = 150;
+  svg.appendChild(el('rect', { x:(L+R)/2-boxW/2, y:T, width:boxW, height:boxH, fill:'none', stroke:'rgba(255,255,255,0.3)', 'stroke-width':2 }));
+  // المرمى (فوق بالوسط)
+  var gW = 150;
+  svg.appendChild(el('rect', { x:(L+R)/2-gW/2, y:T-26, width:gW, height:26, fill:'rgba(255,255,255,0.12)', stroke:'#fff', 'stroke-width':4 }));
+  for(var i=1;i<6;i++){ svg.appendChild(el('line',{ x1:(L+R)/2-gW/2+i*(gW/6), y1:T-26, x2:(L+R)/2-gW/2+i*(gW/6), y2:T, stroke:'rgba(255,255,255,0.5)','stroke-width':1 })); }
+
+  // ===== طبقات =====
+  var arrowLayer = el('g', {}); svg.appendChild(arrowLayer);
+  var playerLayer = el('g', {}); svg.appendChild(playerLayer);
+  var ball = el('circle', { r:13, fill:'#fff', stroke:'#0a1420', 'stroke-width':3 }); svg.appendChild(ball);
+
+  // اللاعبين (ثابتين)
+  var pmap = {};
+  (P.players||[]).forEach(function(p){
+    var c = p.t==='home' ? P.homeColor : P.awayColor;
+    var cx=px(p.x), cy=py(p.y);
+    var g = el('g', {});
+    var circ = el('circle', { cx:cx, cy:cy, r:25, fill:c, stroke:'#0a1420', 'stroke-width':3, opacity:0.9 });
+    g.appendChild(circ);
+    var tx = el('text', { x:cx, y:cy+8, fill:p.t==='home'?'#fff':'#0a1420', 'font-size':25, 'font-weight':800, 'text-anchor':'middle', 'font-family':'Bisbee' });
+    tx.textContent = p.n; g.appendChild(tx);
+    playerLayer.appendChild(g);
+    pmap[p.x+','+p.y] = circ;
+  });
+
+  function setBall(x,y){ ball.setAttribute('cx', px(x)); ball.setAttribute('cy', py(y)); }
+  function dist(a,b){ return Math.hypot(px(b[0])-px(a[0]), py(b[1])-py(a[1])); }
+
+  async function drawArrow(from, to, type){
+    var x1=px(from[0]), y1=py(from[1]), x2=px(to[0]), y2=py(to[1]);
+    var color = type==='shot' ? '#fff' : type==='run' ? '#25C971' : '#F0A23C';
+    var len = Math.hypot(x2-x1, y2-y1);
+    var ln = el('line', { x1:x1, y1:y1, x2:x2, y2:y2, stroke:color, 'stroke-width':6, 'stroke-linecap':'round' });
+    if(type==='run') ln.setAttribute('stroke-dasharray','14,10');
+    else { ln.style.strokeDasharray = len; ln.style.strokeDashoffset = len; ln.style.transition='stroke-dashoffset .7s ease'; }
+    arrowLayer.appendChild(ln);
+    await sleep(20);
+    if(type!=='run'){ ln.style.strokeDashoffset = 0; }
+    // رأس السهم
+    var ang = Math.atan2(y2-y1, x2-x1);
+    var head = el('polygon', { points:'0,-8 16,0 0,8', fill:color, opacity:0, transform:'translate('+x2+','+y2+') rotate('+(ang*180/Math.PI)+')' });
+    arrowLayer.appendChild(head);
+    setTimeout(function(){ head.style.transition='opacity .2s'; head.style.opacity=1; }, 600);
+  }
+
+  async function moveBall(from, to){
+    var d = dist(from, to);
+    var dur = Math.max(500, Math.min(1100, d*1.1));
+    ball.style.transition = 'cx '+dur+'ms ease, cy '+dur+'ms ease';
+    ball.setAttribute('cx', px(to[0])); ball.setAttribute('cy', py(to[1]));
+    await sleep(dur);
+  }
+
+  function highlight(from){
+    var c = pmap[from[0]+','+from[1]];
+    if(c){ c.style.transition='r .2s'; c.setAttribute('r', 31); setTimeout(function(){ c.setAttribute('r',25); }, 500); }
+  }
+
+  async function run(){
+    document.getElementById('ttl').textContent = P.title || 'HOW THE GOAL WAS SCORED';
+    document.getElementById('sub').textContent = P.sub || '';
+    while(true){
+      arrowLayer.innerHTML = '';
+      var steps = P.steps || [];
+      setBall(steps[0].from[0], steps[0].from[1]);
+      ball.style.transition='none';
+      document.getElementById('goalFlash').style.opacity = 0;
+      await sleep(500);
+      for(var i=0;i<steps.length;i++){
+        var s = steps[i];
+        document.getElementById('stepNo').textContent = 'خطوة ' + (i+1) + ' / ' + steps.length;
+        document.getElementById('stepLbl').textContent = s.label || '';
+        var annEl = document.getElementById('stepAnn');
+        if(s.annotation){ annEl.textContent = s.annotation; annEl.style.opacity = 1; } else { annEl.style.opacity = 0; }
+        highlight(s.from);
+        drawArrow(s.from, s.to, s.type);
+        await sleep(120);
+        await moveBall(s.from, s.to);
+        await sleep(450);
+      }
+      // هدف!
+      var gf = document.getElementById('goalFlash');
+      gf.style.opacity = 1; await sleep(1600); gf.style.opacity = 0;
+      await sleep(600);
+    }
+  }
+  run();
+</script>
+</body>
+</html>

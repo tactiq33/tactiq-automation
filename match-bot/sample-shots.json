@@ -1,0 +1,17 @@
+{
+  "title": "SPAIN 2-0 FRANCE",
+  "sub": "World Cup — Semi-final",
+  "homeName": "SPAIN", "awayName": "FRANCE",
+  "homeXG": "1.84", "awayXG": "0.62",
+  "shots": [
+    { "x": 0.86, "y": 0.42, "xg": 0.34, "team": "home", "result": "goal" },
+    { "x": 0.78, "y": 0.55, "xg": 0.12, "team": "home", "result": "saved" },
+    { "x": 0.91, "y": 0.5, "xg": 0.55, "team": "home", "result": "goal" },
+    { "x": 0.7, "y": 0.3, "xg": 0.06, "team": "home", "result": "miss" },
+    { "x": 0.82, "y": 0.62, "xg": 0.2, "team": "home", "result": "blocked" },
+    { "x": 0.84, "y": 0.48, "xg": 0.28, "team": "away", "result": "saved" },
+    { "x": 0.75, "y": 0.4, "xg": 0.09, "team": "away", "result": "miss" },
+    { "x": 0.8, "y": 0.6, "xg": 0.15, "team": "away", "result": "blocked" }
+  ],
+  "caption": "🇪🇸 إسبانيا 2-0 فرنسا | خريطة التسديدات وxG\n\nالأرقام تحكي: إسبانيا صنعت فرصًا أخطر (xG 1.84 مقابل 0.62) وترجمتها. سيطرة تكتيكيّة كاملة.\n\nحلّل المباريات بالأرقام مع TactIQ ⚽\n#TactIQ #xG #كرة_قدم #Spain #France"
+}

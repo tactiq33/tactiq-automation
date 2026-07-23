@@ -1,0 +1,12 @@
+{
+  "competition": "WORLD CUP 2026",
+  "stage": "نصف النهائي",
+  "status": "انتهت المباراة",
+  "home": { "name": "فرنسا", "code": "fr", "score": 2 },
+  "away": { "name": "المغرب", "code": "ma", "score": 1 },
+  "events": {
+    "home": [ {"type":"goal","name":"مبابي","min":45}, {"type":"goal","name":"جيرو","min":88} ],
+    "away": [ {"type":"goal","name":"أزرق","min":70}, {"type":"yellow","name":"حكيمي","min":75} ]
+  },
+  "motm": "كيليان مبابي"
+}

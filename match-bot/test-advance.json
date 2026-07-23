@@ -1,0 +1,11 @@
+{
+  "type": "advance",
+  "team": "Spain",
+  "teamCode": "es",
+  "teamEn": "Spain",
+  "competition": "World Cup",
+  "stage": "Semi-finals",
+  "finalCity": "New York",
+  "home": { "name": "France", "code": "fr", "score": 0 },
+  "away": { "name": "Spain", "code": "es", "score": 2 }
+}

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8" />
+<style>
+  @font-face { font-family:'Brink';   src:url('../../design-mockups/Brink.otf')   format('opentype'); }
+  @font-face { font-family:'InkBrush'; src:url('../../design-mockups/InkBrush.otf') format('opentype'); }
+  @font-face { font-family:'Bisbee';   src:url('../../design-mockups/Bisbee.ttf')  format('truetype'); }
+  :root{ --navy:#0a1420; --green:#25C971; --amber:#F0A23C; --gold:#c9a66b; --text:#eaf3ee; --muted:#8fa39b; --grid:rgba(37,201,113,0.07); --red:#ff5d73; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ background:#05080c; font-family:'Bisbee',system-ui,Arial,sans-serif; color:var(--text); }
+  #card{ position:relative; width:1080px; height:1350px; overflow:hidden; direction:rtl;
+    background: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px), radial-gradient(120% 80% at 50% -10%, #12281c 0%, var(--navy) 55%);
+    background-size: 64px 64px, 64px 64px, 100% 100%; }
+  .glow{ position:absolute; width:720px; height:720px; border-radius:50%; background:radial-gradient(circle, rgba(37,201,113,0.18), transparent 62%); filter:blur(10px); top:-260px; left:50%; transform:translateX(-50%); }
+  .pitch-line{ position:absolute; left:6%; right:6%; height:2px; background:rgba(255,255,255,0.10); }
+  .wordmark{ font-family:'Brink'; letter-spacing:1px; } .wordmark .iq{ color:var(--green); }
+
+  .top{ position:absolute; top:70px; left:0; right:0; text-align:center; }
+  .comp{ font-family:'Bisbee'; font-weight:800; font-size:34px; letter-spacing:3px; color:var(--muted); }
+  .stage{ font-family:'InkBrush'; font-size:64px; margin-top:6px; }
+  .status{ display:inline-block; margin-top:14px; background:var(--green); color:#04120a; font-weight:800; font-size:26px; padding:8px 26px; border-radius:30px; }
+
+  .teams{ position:absolute; top:330px; left:0; right:0; display:flex; align-items:center; justify-content:center; gap:40px; }
+  .team{ width:340px; text-align:center; }
+  .flag{ width:210px; height:210px; border-radius:50%; overflow:hidden; margin:0 auto; background:#fff; border:5px solid rgba(255,255,255,0.92); box-shadow:0 8px 20px rgba(0,0,0,0.5); }
+  .flag img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .tname{ font-family:'InkBrush'; font-size:56px; margin-top:18px; }
+  .score{ font-family:'Brink'; font-size:200px; line-height:0.9; }
+  .dash{ font-family:'Brink'; font-size:120px; color:var(--muted); }
+  .scoreblock{ display:flex; align-items:center; gap:24px; }
+
+  .details{ position:absolute; top:760px; left:80px; right:80px; }
+  .sec-title{ font-family:'Bisbee'; font-weight:800; font-size:28px; color:var(--amber); letter-spacing:2px; text-align:center; margin-bottom:18px; }
+  .events{ display:flex; justify-content:space-between; gap:30px; }
+  .col{ width:48%; }
+  .col.home{ text-align:right; } .col.away{ text-align:left; }
+  .ev{ font-size:34px; font-weight:700; margin:8px 0; color:var(--text); }
+  .ev .min{ color:var(--green); font-weight:800; }
+  .ev .yc{ color:var(--amber); } .ev .rc{ color:var(--red); }
+  .divider{ position:absolute; top:0; bottom:0; left:50%; width:2px; background:rgba(255,255,255,0.10); }
+
+  .motm{ position:absolute; bottom:150px; left:0; right:0; text-align:center; }
+  .motm .lbl{ font-size:26px; color:var(--muted); font-weight:800; letter-spacing:2px; }
+  .motm .name{ font-family:'InkBrush'; font-size:56px; color:var(--gold); margin-top:4px; }
+
+  .brand{ position:absolute; bottom:56px; left:0; right:0; text-align:center; font-family:'Brink'; font-size:54px; letter-spacing:1px; }
+  .brand .iq{ color:var(--green); }
+  .amberbar{ height:8px; width:120px; border-radius:6px; background:var(--amber); margin:16px auto 0; }
+</style>
+</head>
+<body>
+<div id="card">
+  <div class="glow"></div>
+  <div class="pitch-line" style="top:640px;"></div>
+
+  <div class="top">
+    <div class="comp" id="comp"></div>
+    <div class="stage wordmark" id="stage"></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="teams">
+    <div class="team">
+      <div class="flag" id="hflag"></div>
+      <div class="tname" id="hname"></div>
+    </div>
+    <div class="scoreblock">
+      <div class="score" id="hscore"></div>
+      <div class="dash">-</div>
+      <div class="score" id="ascore"></div>
+    </div>
+    <div class="team">
+      <div class="flag" id="aflag"></div>
+      <div class="tname" id="aname"></div>
+    </div>
+  </div>
+
+  <div class="details">
+    <div class="sec-title">⚽ الأهداف والبطاقات</div>
+    <div class="events" style="position:relative;">
+      <div class="divider"></div>
+      <div class="col home" id="hev"></div>
+      <div class="col away" id="aev"></div>
+    </div>
+  </div>
+
+  <div class="motm" id="motmBox">
+    <div class="lbl">🏅 رجل المباراة</div>
+    <div class="name" id="motm"></div>
+  </div>
+
+  <div class="brand">TACT<span class="iq">IQ</span><div class="amberbar"></div></div>
+</div>
+
+<script>
+  // بيانات افتراضيّة — بينعمل override من سكربت التوليد عبر window.MATCH_OVERRIDE
+  var DEFAULT_MATCH = {
+    competition: 'WORLD CUP 2026',
+    stage: 'نصف النهائي',
+    status: 'انتهت المباراة',
+    home: { name:'فرنسا', code:'fr', score:2 },
+    away: { name:'المغرب', code:'ma', score:1 },
+    events: {
+      home: [ {type:'goal', name:'مبابي', min:45}, {type:'goal', name:'جيرو', min:88} ],
+      away: [ {type:'goal', name:'أزرق', min:70}, {type:'yellow', name:'حكيمي', min:75} ]
+    },
+    motm: 'كيليان مبابي'
+  };
+  var M = window.MATCH_OVERRIDE || DEFAULT_MATCH;
+
+  function evLine(e){
+    if(e.type==='goal') return '<div class="ev"><span class="min">'+e.min+"'</span> ⚽ "+e.name+'</div>';
+    if(e.type==='yellow') return '<div class="ev"><span class="min">'+e.min+"'</span> <span class=\"yc\">🟨</span> "+e.name+'</div>';
+    if(e.type==='red') return '<div class="ev"><span class="min">'+e.min+"'</span> <span class=\"rc\">🟥</span> "+e.name+'</div>';
+    return '';
+  }
+  document.getElementById('comp').textContent = M.competition;
+  document.getElementById('stage').textContent = M.stage;
+  document.getElementById('status').textContent = M.status;
+  function flagImg(code){ return '<img src="https://flagcdn.com/w320/'+String(code).toLowerCase()+'.png" alt="">'; }
+  document.getElementById('hflag').innerHTML = flagImg(M.home.code);
+  document.getElementById('aflag').innerHTML = flagImg(M.away.code);
+  document.getElementById('hname').textContent = M.home.name;
+  document.getElementById('aname').textContent = M.away.name;
+  document.getElementById('hscore').textContent = M.home.score;
+  document.getElementById('ascore').textContent = M.away.score;
+  document.getElementById('hev').innerHTML = (M.events.home||[]).map(evLine).join('');
+  document.getElementById('aev').innerHTML = (M.events.away||[]).map(evLine).join('');
+  if(M.motm){ document.getElementById('motm').textContent = M.motm; }
+  else { document.getElementById('motmBox').style.display='none'; }
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "title": "HOW SPAIN SCORED",
+  "sub": "Oyarzabal 22'",
+  "homeColor": "#e01e2b",
+  "awayColor": "#eaeaea",
+  "players": [
+    { "x": 16, "y": 28, "n": "5", "t": "home" },
+    { "x": 38, "y": 44, "n": "9", "t": "home" },
+    { "x": 60, "y": 60, "n": "19", "t": "home" },
+    { "x": 80, "y": 84, "n": "21", "t": "home" },
+    { "x": 48, "y": 52, "n": "6", "t": "away" },
+    { "x": 72, "y": 74, "n": "4", "t": "away" }
+  ],
+  "arrows": [
+    { "from": [16, 28], "to": [38, 44], "type": "pass", "label": "switch of play" },
+    { "from": [38, 44], "to": [60, 60], "type": "pass", "label": "line-break pass" },
+    { "from": [60, 60], "to": [80, 84], "type": "pass", "label": "through ball" },
+    { "from": [80, 84], "to": [83, 96], "type": "shot", "label": "1v1 finish" }
+  ],
+  "annotations": [
+    { "x": 38, "y": 44, "text": "PRESS BEATEN" },
+    { "x": 80, "y": 84, "text": "OFFSIDE TRAP BROKEN" }
+  ],
+  "caption": "🇪🇸 كيف سجّلت إسبانيا | Oyarzabal 22'\n\nتبديل اللعب فتح المساحة، وتمريرة كسر الخطّ لكزّت ضغط فرنسا، ثمّ كرة بينيّة كسرت مصيدة التسلّل لينفرد أوياثارابال ويسجّل.\n\nحلّل كل هدف تكتيكيًّا مع TactIQ ⚽\n#TactIQ #Spain #Tactics #كرة_قدم"
+}
