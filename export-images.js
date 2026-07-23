@@ -47,8 +47,8 @@ function buildNames(metaList) {
   await page.evaluate(async () => { if (document.fonts && document.fonts.ready) await document.fonts.ready; });
   await new Promise((r) => setTimeout(r, 800));
 
-  // خبّي أزرار التحميل حتى ما تطلع بالصور
-  await page.addStyleTag({ content: '.dlbtn{display:none!important;}' });
+  // خبّي أزرار التحميل + الشريط العلويّ (sticky) حتى ما يتراكبوا/يطلعوا بالصور
+  await page.addStyleTag({ content: '.dlbtn{display:none!important;} .bar{display:none!important;}' });
 
   // اقرأ بيانات كل بوست + الكابشنز
   const meta = await page.evaluate(() => {
