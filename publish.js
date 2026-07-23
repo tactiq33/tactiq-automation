@@ -56,6 +56,22 @@ async function graphGet(url) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Publishing to a Page/IG needs a PAGE access token. If a User/System-User
+// token was supplied (e.g. a System User token), derive the Page token from it
+// automatically — otherwise the Graph API returns "(#200) publish_actions...".
+async function resolvePageToken() {
+  try {
+    const r = await graphGet(`https://graph.facebook.com/${GV}/${cfg.fbPage}?fields=access_token&access_token=${encodeURIComponent(cfg.fbToken)}`);
+    if (r && r.access_token) {
+      cfg.fbToken = r.access_token;
+      cfg.igToken = r.access_token;
+      log('   🔑 Using derived Page access token.');
+    }
+  } catch (e) {
+    log('   ⚠️ Could not derive Page token, using the provided token:', e.message);
+  }
+}
+
 // ===== فيسبوك =====
 async function publishFacebook(item, caption) {
   if (!cfg.fbPage || !cfg.fbToken) throw new Error('FB_PAGE_ID / FB_PAGE_TOKEN ناقصين بـ .env');
@@ -138,6 +154,8 @@ function isDue(item, now) {
 
   if (due.length === 0) { log('✅ ما في منشورات مستحقّة هلّق.'); return; }
   log(`📤 ${due.length} منشور مستحقّ${DRY ? ' (تجربة — بلا نشر فعليّ)' : ''}:`);
+
+  if (!DRY) await resolvePageToken();
 
   for (const item of due) {
     const caption = ((LANG === 'en' ? item.caption_en : item.caption_ar) || '') +
