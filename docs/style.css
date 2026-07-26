@@ -1,0 +1,62 @@
+/* TactIQ legal pages — shared style. Standalone, no external fonts or scripts. */
+:root{
+  --bg:#0a0e1a;
+  --card:#111726;
+  --border:#1e2740;
+  --text:#e8ecf5;
+  --muted:#93a0bb;
+  --accent:#d8a53a;
+  --accent2:#4ade80;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text)}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Naskh Arabic","Noto Sans Arabic",sans-serif;
+  font-size:16px;line-height:1.85;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+header.top{
+  border-bottom:1px solid var(--border);
+  padding:22px 20px;background:#080b14;position:sticky;top:0;z-index:5;
+}
+header.top .inner{max-width:860px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{font-size:22px;font-weight:800;letter-spacing:2px;color:var(--text);text-decoration:none}
+.brand em{color:var(--accent);font-style:normal}
+.spacer{flex:1}
+.langbtns{display:flex;gap:8px}
+.langbtns button{
+  background:transparent;color:var(--muted);border:1px solid var(--border);
+  border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
+}
+.langbtns button.on{background:var(--accent);border-color:var(--accent);color:#0a0e1a}
+html:not(.js) .langbtns{display:none}
+nav.docnav{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+nav.docnav a{color:var(--muted);font-size:13px;text-decoration:none;border:1px solid var(--border);border-radius:999px;padding:5px 12px}
+nav.docnav a:hover{color:var(--accent);border-color:var(--accent)}
+
+section.doc[dir="rtl"]{text-align:right}
+h1{font-size:28px;line-height:1.4;margin:22px 0 6px}
+h2{font-size:20px;margin:34px 0 10px;color:var(--accent)}
+h3{font-size:17px;margin:22px 0 8px}
+p,li{color:var(--text)}
+.lead{color:var(--muted);font-size:15px;margin:0 0 18px}
+.meta{color:var(--muted);font-size:13px;margin:0 0 26px}
+ul,ol{padding-inline-start:22px}
+li{margin:7px 0}
+a{color:var(--accent)}
+code{background:#0d1322;border:1px solid var(--border);border-radius:5px;padding:1px 6px;font-size:14px}
+.box{
+  background:var(--card);border:1px solid var(--border);border-inline-start:3px solid var(--accent);
+  border-radius:12px;padding:14px 18px;margin:18px 0;
+}
+.box.ok{border-inline-start-color:var(--accent2)}
+table{width:100%;border-collapse:collapse;margin:18px 0;font-size:15px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--border);padding:10px 12px;vertical-align:top}
+th{background:#0d1322;color:var(--accent);text-align:inherit}
+footer.foot{border-top:1px solid var(--border);margin-top:44px;padding-top:20px;color:var(--muted);font-size:13px}
+.hide{display:none}
+@media (max-width:520px){
+  h1{font-size:23px}
+  body{font-size:15px}
+}
