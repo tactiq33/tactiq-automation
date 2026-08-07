@@ -9,9 +9,16 @@ on:
     - cron: '0 17 * * *'   # يوميًّا 17:00 UTC
   workflow_dispatch: {}     # زرّ تشغيل يدويّ
 
+# لا يُلغى run بسبب run آخر: الجدولة مرّتين يوميًّا قد تتقاطع مع تشغيل يدويّ،
+# والإلغاء التلقائيّ يفقد حالة النشر ويجعل منشورًا مستحقًّا يضيع.
+concurrency:
+  group: tactiq-publish
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 15      # بدل التعليق حتى الإلغاء بعد 6 ساعات
     permissions:
       contents: write   # لازم حتى يحفظ حالة النشر (schedule.json) ويمنع تكرار المنشور
     steps:
@@ -32,7 +39,9 @@ jobs:
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
           TIKTOK_TOKEN: ${{ secrets.TIKTOK_TOKEN }}
         run: node publish.js
+      # يُحفظ الحالة حتى لو فشل النشر، وإلّا يُعاد نشر ما نُشر فعلًا
       - name: Commit updated schedule status
+        if: always()
         run: |
           git config user.name "tactiq-bot"
           git config user.email "bot@tactiq.local"

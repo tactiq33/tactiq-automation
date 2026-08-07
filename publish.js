@@ -38,9 +38,28 @@ function log(...a) { console.log(...a); }
 function imgUrl(file) { return BASE_URL + '/' + file; }
 function videoUrl(file) { return VIDEO_BASE_URL + '/' + file; }
 
+// Every network call gets a hard timeout. Node's fetch has NO default timeout, so
+// one stalled connection used to hang the whole GitHub Actions job until the 6-hour
+// runner limit killed it — which is reported as "All jobs were cancelled" and looks
+// like a mystery. A timeout turns that silent hang into a normal, readable error.
+const NET_TIMEOUT_MS = Number(process.env.NET_TIMEOUT_MS || 45000);
+
+async function fetchWithTimeout(url, init = {}) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), NET_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: ctl.signal });
+  } catch (e) {
+    if (e?.name === 'AbortError') throw new Error(`network timeout after ${NET_TIMEOUT_MS}ms: ${String(url).split('?')[0]}`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function graph(url, params) {
   const body = new URLSearchParams(params);
-  const res = await fetch(url, { method: 'POST', body });
+  const res = await fetchWithTimeout(url, { method: 'POST', body });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.error) {
     throw new Error('Graph error: ' + JSON.stringify(json.error || json));
@@ -49,7 +68,7 @@ async function graph(url, params) {
 }
 
 async function graphGet(url) {
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.error) throw new Error('Graph GET error: ' + JSON.stringify(json.error || json));
   return json;
