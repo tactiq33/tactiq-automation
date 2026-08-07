@@ -13,7 +13,8 @@
     "caption_en": "Your path from C to PRO 🎓 — 52 units, 621 questions, sequential unlocking so you learn it right. Arabic & English, works offline.",
     "hashtags": "#TactIQ #UEFA #CoachingBadges #تدريب #FootballEducation",
     "week": 1,
-    "status": "pending"
+    "status": "error",
+    "error": "Graph error: {\"message\":\"API access blocked.\",\"type\":\"OAuthException\",\"code\":200,\"fbtrace_id\":\"AtqM2oUxy8FNUDWoydVoPlb\"}"
   },
   {
     "date": "2026-08-09",
