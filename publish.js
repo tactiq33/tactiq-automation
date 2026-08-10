@@ -109,9 +109,47 @@ async function publishInstagram(item, caption) {
   if (item.media_type === 'STORY') params.media_type = 'STORIES';
   else params.caption = caption;
   const created = await graph(createUrl, params);
+
+  // ⚠️ Instagram needs a moment to fetch and process the image even for photos and
+  // stories. Publishing straight after creating the container fails with
+  // 9007 / 2207027 "The media is not ready to be published" — that is exactly what
+  // killed the 2026-08-09 post. So wait for the container, then publish with retries.
+  await waitForContainer(created.id);
+
   const publishUrl = `https://graph.facebook.com/${GV}/${cfg.igUser}/media_publish`;
-  const pub = await graph(publishUrl, { creation_id: created.id, access_token: cfg.igToken });
+  const pub = await publishWithRetry(publishUrl, created.id);
   return 'IG media id: ' + pub.id;
+}
+
+/** Polls a media container until Instagram reports FINISHED (or gives up). */
+async function waitForContainer(containerId, tries = 12, waitMs = 5000) {
+  const statusUrl = `https://graph.facebook.com/${GV}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(cfg.igToken)}`;
+  for (let i = 0; i < tries; i++) {
+    await sleep(waitMs);
+    let st;
+    try { st = await graphGet(statusUrl); } catch { continue; }  // transient read errors are not fatal
+    if (st.status_code === 'FINISHED') return true;
+    if (st.status_code === 'ERROR') throw new Error('IG container ERROR: ' + (st.status || 'unknown'));
+  }
+  return false; // not confirmed — publishWithRetry still gives it a few chances
+}
+
+/** Publishes a container, retrying only the "not ready yet" error. */
+async function publishWithRetry(publishUrl, creationId, tries = 5, waitMs = 8000) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await graph(publishUrl, { creation_id: creationId, access_token: cfg.igToken });
+    } catch (e) {
+      last = e;
+      const msg = String(e.message || e);
+      const notReady = msg.includes('2207027') || msg.includes('not ready') || msg.includes('Media ID is not available');
+      if (!notReady) throw e;          // a real error must surface immediately
+      log(`   … IG not ready, retry ${i + 1}/${tries}`);
+      await sleep(waitMs);
+    }
+  }
+  throw last;
 }
 
 // ===== فيديو فيسبوك (من رابط عامّ) =====
