@@ -207,7 +207,14 @@ function isDue(item, now) {
 
   const rows = JSON.parse(fs.readFileSync(SCHEDULE, 'utf8'));
   const now = new Date();
-  const due = rows.filter((r) => r.status === 'pending' && r.media_type !== 'VIDEO_SLOT' && isDue(r, now));
+  // ⚠️ Root cause of "the bot stopped posting": a single failure set status to
+  // 'error', and only 'pending' items were ever retried — so one bad night killed
+  // the rest of the schedule silently. Failed items are now retried on the next run
+  // (up to RETRY_LIMIT attempts) unless RETRY_ERRORS=0 is set.
+  const RETRY_ERRORS = process.env.RETRY_ERRORS !== '0';
+  const RETRY_LIMIT = Number(process.env.RETRY_LIMIT || 5);
+  const retryable = (r) => RETRY_ERRORS && r.status === 'error' && (r.attempts || 0) < RETRY_LIMIT;
+  const due = rows.filter((r) => (r.status === 'pending' || retryable(r)) && r.media_type !== 'VIDEO_SLOT' && isDue(r, now));
 
   if (due.length === 0) { log('✅ ما في منشورات مستحقّة هلّق.'); return; }
   log(`📤 ${due.length} منشور مستحقّ${DRY ? ' (تجربة — بلا نشر فعليّ)' : ''}:`);
@@ -235,6 +242,7 @@ function isDue(item, now) {
       item.result = results.join(' | ');
       log('   ✅', results.join(' | '));
     } catch (e) {
+      item.attempts = (item.attempts || 0) + 1;  // so a permanently broken item stops eventually
       item.status = 'error';
       item.error = String(e.message || e);
       log('   ❌', item.error);
