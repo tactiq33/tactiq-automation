@@ -1,0 +1,110 @@
+name: TactIQ Match Bot
+
+# مراقبة المباريات وإرسال البرومتات على تيليغرام، بلا حاسوبك.
+#
+# ⚠️ مطفأ افتراضيًّا. يشتغل فقط لمّا تصير المتغيّرة MATCH_BOT_ENABLED = 1
+# في Settings → Secrets and variables → Actions → Variables.
+# السبب: الباقة المجّانيّة لـAPI-Football = 100 طلب/يوم، والمراقبة الدائمة
+# تستهلكها في مباراة واحدة. فيُترك مطفأً حتى يُشترى المدفوع، ثمّ يُفتح بسطر واحد.
+#
+# توقيت cron بالـUTC.
+
+on:
+  schedule:
+    # تذكير قمم اليوم، مرّة صباحًا (09:00 بتوقيت بيروت صيفًا = 06:00 UTC)
+    - cron: '0 6 * * *'
+    # جولة مراقبة كلّ عشر دقائق خلال ساعات المباريات (14:00–23:59 UTC)
+    - cron: '*/10 14-23 * * *'
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'preview | live'
+        required: true
+        default: 'live'
+
+# الحالة تُحفظ في المستودع، فمنع التوازي إلزاميّ: جولتان معًا تكتبان نفس
+# ملفّات state وتُنتجان تنبيهًا مكرّرًا — وهو عطل وقع فعلًا في تنبيهات التطبيق.
+concurrency:
+  group: tactiq-match-bot
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    # الجولة الصباحيّة فقط
+    if: github.event.schedule == '0 6 * * *' || github.event.inputs.job == 'preview'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --omit=dev || npm install --omit=dev
+
+      - name: Morning preview
+        if: vars.MATCH_BOT_ENABLED == '1'
+        env:
+          FOOTBALL_API_KEY: ${{ secrets.FOOTBALL_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node match-bot/preview.js --send
+
+      - name: Skipped
+        if: vars.MATCH_BOT_ENABLED != '1'
+        run: echo "MATCH_BOT_ENABLED is not 1 — bot is off on purpose (free API quota)."
+
+  live:
+    # جولات المراقبة.
+    # الشرط مكتوب بـevent_name لا بالمقارنة وحدها: بلاها، التشغيل اليدويّ
+    # للمعاينة كان يُشغّل هذه الوظيفة أيضًا (لأنّ github.event.schedule فاضية
+    # في التشغيل اليدويّ فتنجح المقارنة "لا تساوي").
+    if: (github.event_name == 'schedule' && github.event.schedule != '0 6 * * *') || github.event.inputs.job == 'live'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write   # لازم لحفظ ملفّات state ومنع تكرار نفس الحدث
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --omit=dev || npm install --omit=dev
+
+      - name: Watch live fixtures
+        if: vars.MATCH_BOT_ENABLED == '1'
+        env:
+          FOOTBALL_API_KEY: ${{ secrets.FOOTBALL_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FINAL_CITY: ${{ vars.FINAL_CITY }}
+          MATCH_BOT_MAX: ${{ vars.MATCH_BOT_MAX }}
+        run: |
+          set -e
+          MAXN="${MATCH_BOT_MAX:-2}"
+          # نداء واحد للـAPI يعطي أرقام المباريات المستحقّة
+          IDS=$(node match-bot/live-ids.js --ids --max="$MAXN" || true)
+          if [ -z "$IDS" ]; then
+            echo "no live fixture worth watching this pass"
+            exit 0
+          fi
+          # --once إلزاميّ: الجولة تفحص مرّة وتخرج، والـcron هو الحلقة.
+          # حلقة داخلية طويلة كانت ستُقتل عند timeout وتترك الحالة ناقصة.
+          for ID in $IDS; do
+            echo "── fixture $ID"
+            node match-bot/watch.js --fixture="$ID" --once --send || echo "watch failed for $ID"
+          done
+
+      - name: Skipped
+        if: vars.MATCH_BOT_ENABLED != '1'
+        run: echo "MATCH_BOT_ENABLED is not 1 — bot is off on purpose (free API quota)."
+
+      # تُحفظ الحالة دائمًا: لو فشل الإرسال بعد ما سُجّل الحدث، الجولة الجايي
+      # ما تعيده. هذا نفس الدرس المستفاد من تكرار تنبيهات المباريات في التطبيق.
+      - name: Commit bot state
+        if: always() && vars.MATCH_BOT_ENABLED == '1'
+        run: |
+          git config user.name "tactiq-bot"
+          git config user.email "bot@tactiq.local"
+          git add match-bot/state || true
+          git commit -m "chore: match-bot state [skip ci]" || echo "no changes"
+          git push || echo "nothing to push"
