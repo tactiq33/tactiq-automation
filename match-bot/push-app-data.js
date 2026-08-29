@@ -85,6 +85,32 @@ const slimEvent = (e) => ({
 
 const slimPlayer = (x) => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, grid: x.player.grid });
 
+/**
+ * تقييمات اللاعبين وأرقامهم في المباراة — من `/fixtures/players`.
+ * نداء رابع لكلّ مباراة، وهو ما يجعل شاشة التشكيلة تعرض تقييمًا لكلّ لاعب وشارة
+ * الكابتن وعلامة من خرج، مثل التطبيقات الكبيرة. الكلفة: +1 نداء لكلّ مباراة.
+ */
+function slimPlayerStats(rows) {
+  const out = {};
+  for (const team of rows || []) {
+    for (const p of team.players || []) {
+      const g = (p.statistics && p.statistics[0]) || {};
+      const games = g.games || {};
+      out[String(p.player.id)] = {
+        rating: games.rating ? Number(games.rating) : null,
+        captain: !!games.captain,
+        substitute: !!games.substitute,
+        minutes: games.minutes ?? null,
+        goals: (g.goals && g.goals.total) || 0,
+        assists: (g.goals && g.goals.assists) || 0,
+        yellow: (g.cards && g.cards.yellow) || 0,
+        red: (g.cards && g.cards.red) || 0,
+      };
+    }
+  }
+  return out;
+}
+
 const slimLineup = (l) => ({
   teamId: l.team.id,
   formation: l.formation,
@@ -116,7 +142,11 @@ async function previousDetails() {
       const r = await fetch(`${WORKER}/football/fixture/${m.id}`);
       if (!r.ok) continue;
       const d = await r.json();
-      if (!d.pending) out[String(m.id)] = { events: d.events, lineups: d.lineups, statistics: d.statistics };
+      // ⚠️ «مخزَّنة» تعني **كاملة**: مباراة محفوظة قبل إضافة تقييمات اللاعبين
+      // تنقصها `players`، فلو اعتبرناها كاملة لبقيت بلا تقييمات للأبد (المنتهية
+      // لا تُسحب مرّتين). فتُعاد مرّة واحدة ثمّ تستقرّ.
+      const complete = !d.pending && d.players && Object.keys(d.players).length > 0;
+      if (complete) out[String(m.id)] = { events: d.events, lineups: d.lineups, statistics: d.statistics, players: d.players };
     }
     return out;
   } catch {
@@ -141,7 +171,14 @@ async function detailsFor(id) {
   const lineups = await api(`/fixtures/lineups?fixture=${id}`);
   await sleep(GAP_MS);
   const statistics = await api(`/fixtures/statistics?fixture=${id}`);
-  return { events: events.map(slimEvent), lineups: lineups.map(slimLineup), statistics: statistics.map(slimStats) };
+  await sleep(GAP_MS);
+  const players = await api(`/fixtures/players?fixture=${id}`);
+  return {
+    events: events.map(slimEvent),
+    lineups: lineups.map(slimLineup),
+    statistics: statistics.map(slimStats),
+    players: slimPlayerStats(players),
+  };
 }
 
 (async () => {
