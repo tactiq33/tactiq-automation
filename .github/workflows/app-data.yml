@@ -1,0 +1,54 @@
+name: TactIQ App Match Data
+
+# يجمع بيانات المباريات ويدفعها إلى سيرفرنا، ليقرأها التطبيق.
+#
+# ⚠️ ليش من هنا لا من داخل الـWorker — قياس مسجَّل في الملفّات:
+# المزوّد يرفض جزءًا من النداءات القادمة من عناوين Cloudflare (6 من 10 تنجح)،
+# بينما تنجح كلّها من عناوين GitHub Actions ومن جهاز عاديّ.
+#
+# ⚠️ مطفأ افتراضيًّا. يشتغل فقط عندما تصير المتغيّرة APP_DATA_ENABLED = 1
+# في Settings → Secrets and variables → Actions → Variables.
+#
+# ── الكلفة ──────────────────────────────────────────────────────────────
+# نداءات المزوّد: 1 للقائمة + 3 لكلّ مباراة جارية (بسقف 8) ⇒ ~25 للجولة الواحدة
+# في ذروة المباريات، وأقلّ بكثير في غيرها. مع الجدولة تحت تبقى بعيدة عن 7500/يوم،
+# ويبقى هامش لبوت تيليغرام الذي يشارك نفس المفتاح.
+#
+# كتابات KV: كتابة **واحدة** لكلّ جولة (المخزون في مفتاح واحد) ⇒ ~156/يوم من
+# أصل 1000 مسموحة في الخطّة المجّانيّة.
+
+on:
+  schedule:
+    # ساعات المباريات (12:00–23:59 UTC): كلّ خمس دقائق
+    - cron: '*/5 12-23 * * *'
+    # باقي اليوم: مرّة كلّ ساعة، ليبقى جدول اليوم محدَّثًا بلا صرف
+    - cron: '0 0-11 * * *'
+  workflow_dispatch:
+
+# جولتان معًا تدفعان مخزونين متعارضين ⇒ منع التوازي إلزاميّ
+concurrency:
+  group: tactiq-app-data
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --omit=dev || npm install --omit=dev
+
+      - name: Collect and push
+        if: vars.APP_DATA_ENABLED == '1'
+        env:
+          FOOTBALL_API_KEY: ${{ secrets.FOOTBALL_API_KEY }}
+          INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+          WORKER_URL: ${{ vars.WORKER_URL }}
+        run: node match-bot/push-app-data.js --push
+
+      - name: Skipped
+        if: vars.APP_DATA_ENABLED != '1'
+        run: echo "APP_DATA_ENABLED is not 1 — collector is off on purpose."
