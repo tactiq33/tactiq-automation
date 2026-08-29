@@ -91,18 +91,17 @@ function toEvent(apiEv, fx) {
 
 async function handle(ev, label) {
   const d = decide(ev);
-  if (d.action === 'skip') { console.log('⏭️', label, '— تخطّي:', d.reasons.join('')); return; }
 
-  let msg;
-  if (d.action === 'aiDesign') {
-    const b = build(ev);
-    msg = `[${label}] 🅰️ تصميم AI (${d.reasons.join(' • ')})\n\n` + formatMessage(ev, b);
-  } else { // resultCard — لاعب غير نجم
-    const sc = (ev.home && ev.away) ? `${ev.home.name} ${ev.home.score}-${ev.away.score} ${ev.away.name}` : '';
-    msg = `[${label}] 🅱️ كرت نتيجة (لاعب غير نجم)\n${sc}` +
-      (ev.player ? `\n⚽ ${ev.player} ${ev.min}'` : '') +
-      `\nℹ️ ما منعمل تصميم AI لهالحدث — كرت نتيجة نظيف (أو تخطّي).`;
+  // ⚠️ قاعدة المالك: كلّ رسالة تُبعث لازم تحمل برومبتًا يُستعمل. الحدث الذي لا
+  // يستحقّ تصميمًا لا تُبعث عنه رسالة أبدًا — يُطبع في السجلّ ويُنتهى.
+  // (المسار القديم كان يبعث نصًّا «صار هدف وما منعمل تصميم»، وهو بلا فائدة.)
+  if (d.action !== 'aiDesign') {
+    console.log('⏭️', label, '— بلا إرسال:', d.reasons.join(' • '));
+    return;
   }
+
+  const b = build(ev);
+  const msg = `[${label}] 🅰️ تصميم AI (${d.reasons.join(' • ')})\n\n` + formatMessage(ev, b);
   console.log('\n──────────────\n' + msg + '\n──────────────');
   if (SEND) {
     try { await sendTelegram(msg); console.log('✅ انبعت على تيليغرام'); }

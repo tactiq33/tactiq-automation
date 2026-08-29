@@ -21,7 +21,7 @@ const DATE = dateArg || new Date().toISOString().slice(0, 10);
 
 // القرار كلّه من `rules.js` — أرقام البطولات لا أسماؤها، ومطابقة كلمة كاملة
 // للأندية. النسخة السابقة كانت هنا محلّيًّا، وهي التي مرّقت دوري البرازيل.
-const { isBigClub, rivalryOf: rivalryTitle, leagueWeight, isBigCompetition, isKnockout } = require('./rules');
+const { bigMatch } = require('./rules');
 
 async function api(p) {
   const res = await fetch(HOST + p, { headers: { 'x-apisports-key': KEY } });
@@ -33,21 +33,8 @@ async function api(p) {
 // هل هالمباراة قمّة؟ يرجّع {big, title} أو null
 function bigFixture(f) {
   const h = f.teams.home.name, a = f.teams.away.name;
-  const round = f.league.round;
-  const w = leagueWeight(f.league);
-
-  // شرط أساسيّ: البطولة نفسها من قائمتنا. بلاه كان ديربي بدوري صغير أو نادٍ
-  // اسمه يشبه نادياً كبيراً يفتح الباب لأيّ مباراة في العالم.
-  if (w === 0) return null;
-
-  const title = rivalryTitle(h, a);
-  const twoBig = isBigClub(h) && isBigClub(a);
-  const bigCompKO = isBigCompetition(f.league) && isKnockout(round);
-
-  if (title || twoBig || bigCompKO || (w >= 8 && (isBigClub(h) || isBigClub(a)))) {
-    return { title: title || null };
-  }
-  return null;
+  // نفس تعريف «المباراة القويّة» المستعمل في `decide.js` — من `rules.js`، نسخة واحدة.
+  return bigMatch({ league: f.league, home: h, away: a, round: f.league.round });
 }
 
 (async () => {

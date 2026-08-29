@@ -90,6 +90,29 @@ function isKnockout(round) {
   return (RULES.knockoutKeywords || []).some((k) => norm(round).includes(norm(k)));
 }
 
+/**
+ * هل هذه «مباراة قويّة» تستحقّ تصميمًا؟
+ *
+ * قرار المالك: البرومبت للمهمّ فقط — نجوم مشهورون ومباريات قويّة. لاعب لا يعرفه
+ * أحد في مباراة عاديّة **لا يُبعث عنه شيء أصلًا**. وكانت النسخة السابقة تبعث
+ * رسالة نصّيّة «صار هدف وما منعمل تصميم»، وهي رسالة بلا فائدة: لا برومبت ولا صورة.
+ *
+ * يرجّع `null` إذا المباراة عاديّة، أو `{ title }` إذا قويّة (والعنوان يكون
+ * EL CLASICO / THE DERBY إن وُجد، وإلّا `null` مع كون المباراة قويّة).
+ */
+function bigMatch({ league, home, away, round }) {
+  const w = leagueWeight(league);
+  if (w === 0) return null;                        // بطولة خارج القائمة ⇒ لا شيء
+
+  const title = rivalryOf(home, away);
+  const twoBig = isBigClub(home) && isBigClub(away);
+  const bigKO = isBigCompetition(league) && isKnockout(round);
+  const topLeagueWithBigClub = w >= 8 && (isBigClub(home) || isBigClub(away));
+
+  if (title || twoBig || bigKO || topLeagueWithBigClub) return { title: title || null };
+  return null;
+}
+
 /** نجم كبير — كلمة كاملة كذلك، فلا يمرّ «Ronaldo» داخل اسم آخر بالغلط. */
 function isStarPlayer(name) {
   const n = norm(name);
@@ -100,4 +123,4 @@ function isStarPlayer(name) {
   });
 }
 
-module.exports = { RULES, norm, leagueIdOf, leagueWeight, isBigCompetition, isBigClub, rivalryOf, isKnockout, isStarPlayer };
+module.exports = { RULES, norm, leagueIdOf, leagueWeight, isBigCompetition, isBigClub, rivalryOf, isKnockout, isStarPlayer, bigMatch };
