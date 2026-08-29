@@ -12,37 +12,27 @@ const path = require('path');
 
 const RULES = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'content-rules.json'), 'utf8'));
 
-function norm(s) { return (s || '').toString().toLowerCase(); }
-function includesAny(hay, list) { const h = norm(hay); return list.some((x) => h.includes(norm(x))); }
+// طبقة القرار المشتركة: أرقام البطولات، ومطابقة كلمة كاملة للأندية واللاعبين.
+const { norm, leagueWeight, isBigCompetition, isBigClub, rivalryOf, isKnockout: koRound, isStarPlayer } = require('./rules');
 
-function isStar(ev) {
-  const p = norm(ev.playerEn || ev.player);
-  return RULES.starPlayers.some((s) => p.includes(norm(s)));
-}
-function isKnockout(ev) { return includesAny(ev.stage, RULES.knockoutKeywords); }
-function isBigComp(ev) {
-  const c = norm(ev.competition);
-  return ['champions league', 'world cup', 'كأس العالم', 'أبطال'].some((x) => c.includes(norm(x)));
-}
+function isStar(ev) { return isStarPlayer(ev.playerEn || ev.player); }
+function isKnockout(ev) { return koRound(ev.stage); }
+
+/** رقم بطولة الحدث. `watch.js` و`preview.js` يضعانه في كلّ حدث. */
+function leagueOf(ev) { return ev.leagueId != null ? ev.leagueId : (ev.league && ev.league.id); }
+
+function isBigComp(ev) { return isBigCompetition(leagueOf(ev)); }
 function teamsInvolved(ev) {
   return [ev.home && ev.home.name, ev.away && ev.away.name, ev.team].filter(Boolean);
 }
 function isRivalry(ev) {
-  const t = teamsInvolved(ev).map(norm);
-  return RULES.rivalries.some((pair) => pair.every((team) => t.some((x) => x.includes(norm(team)) || norm(team).includes(x))));
+  return !!rivalryOf(ev.home && ev.home.name, ev.away && ev.away.name);
 }
 function isBigClash(ev) {
   const names = [ev.home && ev.home.name, ev.away && ev.away.name].filter(Boolean);
-  const bigCount = names.filter((n) => RULES.bigClubs.some((b) => norm(n).includes(norm(b)) || norm(b).includes(norm(n)))).length;
-  return bigCount >= 2;
+  return names.filter(isBigClub).length >= 2;
 }
-function leaguePriority(ev) {
-  const c = ev.competition || '';
-  for (const [name, w] of Object.entries(RULES.priorityLeagues)) {
-    if (norm(c).includes(norm(name)) || norm(name).includes(norm(c))) return w;
-  }
-  return 0;
-}
+function leaguePriority(ev) { return leagueWeight(leagueOf(ev)); }
 
 function decide(ev) {
   const star = isStar(ev);

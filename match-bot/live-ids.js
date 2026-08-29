@@ -31,25 +31,9 @@ const IDS_ONLY = !!arg('ids', false);
 const MAX = parseInt(arg('max', '3'), 10);
 const MIN_WEIGHT = parseFloat(arg('min', '2'));
 
-function norm(s) { return (s || '').toString().toLowerCase(); }
-function isBigClub(name) {
-  return RULES.bigClubs.some((b) => norm(name).includes(norm(b)) || norm(b).includes(norm(name)));
-}
-function isRivalry(h, a) {
-  return RULES.rivalries.some((p) => {
-    const [x, y] = p.map(norm);
-    return (norm(h).includes(x) && norm(a).includes(y)) || (norm(h).includes(y) && norm(a).includes(x));
-  });
-}
-function leagueWeight(name) {
-  for (const [n, w] of Object.entries(RULES.priorityLeagues)) {
-    if (norm(name).includes(norm(n)) || norm(n).includes(norm(name))) return w;
-  }
-  return 0;
-}
-function isKnockout(round) {
-  return RULES.knockoutKeywords.some((k) => norm(round).includes(norm(k)));
-}
+// نفس طبقة القرار المستعملة في `preview.js` و`decide.js`.
+const { isBigClub, rivalryOf, leagueWeight, isKnockout } = require('./rules');
+const isRivalry = (h, a) => !!rivalryOf(h, a);
 
 async function api(p) {
   const res = await fetch(HOST + p, { headers: { 'x-apisports-key': KEY } });
@@ -71,12 +55,18 @@ async function api(p) {
     const league = fx.league || {};
     const round = league.round || '';
 
-    // الوزن: الدوري أساس، والنجوم والديربي والإقصائيّات تزيد
-    let weight = leagueWeight(league.name);
-    if (isBigClub(home)) weight += 1.5;
-    if (isBigClub(away)) weight += 1.5;
-    if (isRivalry(home, away)) weight += 3;
-    if (isKnockout(round)) weight += 2;
+    // الوزن: البطولة أساس (برقمها)، والنجوم والديربي والإقصائيّات تزيد.
+    // ⚠️ وزن البطولة صفر ⇒ المباراة تُهمَل ولو كان فيها ديربي أو نادٍ كبير:
+    // بلا هذا الشرط كانت الإضافات لحدها ترفع مباراة في دوري صغير فوق الحدّ.
+    const base = leagueWeight(league);
+    let weight = 0;
+    if (base > 0) {
+      weight = base;
+      if (isBigClub(home)) weight += 1.5;
+      if (isBigClub(away)) weight += 1.5;
+      if (isRivalry(home, away)) weight += 3;
+      if (isKnockout(round)) weight += 2;
+    }
 
     return {
       id: fx.fixture.id,

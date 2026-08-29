@@ -19,25 +19,9 @@ const SEND = process.argv.includes('--send');
 const dateArg = process.argv.find((a) => /^\d{4}-\d{2}-\d{2}$/.test(a));
 const DATE = dateArg || new Date().toISOString().slice(0, 10);
 
-function norm(s) { return (s || '').toString().toLowerCase(); }
-function isBigClub(name) { return RULES.bigClubs.some((b) => norm(name).includes(norm(b)) || norm(b).includes(norm(name))); }
-function rivalryTitle(h, a) {
-  const pair = RULES.rivalries.find((p) => {
-    const [x, y] = p.map(norm);
-    return (norm(h).includes(x) && norm(a).includes(y)) || (norm(h).includes(y) && norm(a).includes(x));
-  });
-  if (!pair) return null;
-  const key = pair.map(norm).sort().join('|');
-  if (key.includes('real madrid') && key.includes('barcelona')) return 'EL CLASICO';
-  return 'THE DERBY';
-}
-function leagueWeight(name) {
-  for (const [n, w] of Object.entries(RULES.priorityLeagues)) {
-    if (norm(name).includes(norm(n)) || norm(n).includes(norm(name))) return w;
-  }
-  return 0;
-}
-function isKnockout(round) { return RULES.knockoutKeywords.some((k) => norm(round).includes(norm(k))); }
+// القرار كلّه من `rules.js` — أرقام البطولات لا أسماؤها، ومطابقة كلمة كاملة
+// للأندية. النسخة السابقة كانت هنا محلّيًّا، وهي التي مرّقت دوري البرازيل.
+const { isBigClub, rivalryOf: rivalryTitle, leagueWeight, isBigCompetition, isKnockout } = require('./rules');
 
 async function api(p) {
   const res = await fetch(HOST + p, { headers: { 'x-apisports-key': KEY } });
@@ -49,11 +33,17 @@ async function api(p) {
 // هل هالمباراة قمّة؟ يرجّع {big, title} أو null
 function bigFixture(f) {
   const h = f.teams.home.name, a = f.teams.away.name;
-  const comp = f.league.name, round = f.league.round;
+  const round = f.league.round;
+  const w = leagueWeight(f.league);
+
+  // شرط أساسيّ: البطولة نفسها من قائمتنا. بلاه كان ديربي بدوري صغير أو نادٍ
+  // اسمه يشبه نادياً كبيراً يفتح الباب لأيّ مباراة في العالم.
+  if (w === 0) return null;
+
   const title = rivalryTitle(h, a);
   const twoBig = isBigClub(h) && isBigClub(a);
-  const bigCompKO = /world cup|champions|euro|copa|nations|كأس|أبطال/i.test(comp) && isKnockout(round);
-  const w = leagueWeight(comp);
+  const bigCompKO = isBigCompetition(f.league) && isKnockout(round);
+
   if (title || twoBig || bigCompKO || (w >= 8 && (isBigClub(h) || isBigClub(a)))) {
     return { title: title || null };
   }
@@ -76,7 +66,9 @@ function bigFixture(f) {
     const t = new Date(f.fixture.date).toLocaleTimeString();
     const ev = {
       type: 'preview',
+      leagueId: f.league.id != null ? Number(f.league.id) : null,
       competition: f.league.name,
+      country: f.league.country || '',
       stage: f.league.round,
       time: t,
       title,

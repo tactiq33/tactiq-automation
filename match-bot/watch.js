@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const { build, formatMessage, sendTelegram } = require('./notify');
 const { decide } = require('./decide');
+const { isBigCompetition } = require('./rules');
 
 const KEY = process.env.FOOTBALL_API_KEY;
 const HOST = 'https://v3.football.api-sports.io';
@@ -73,7 +74,10 @@ function toEvent(apiEv, fx) {
 
   return {
     type,
+    // رقم البطولة إلزاميّ: `decide.js` يقرّر به، والاسم للعرض فقط.
+    leagueId: league.id != null ? Number(league.id) : null,
     competition: league.name || '',
+    country: (league.country || ''),
     stage: league.round || '',
     player: apiEv.player && apiEv.player.name,
     playerEn: apiEv.player && apiEv.player.name,
@@ -137,10 +141,13 @@ async function poll() {
   if (finished && !state.finalSent) {
     const round = fx.league.round || '';
     const knockout = /final|semi|quarter|نهائي|نصف|ربع|knockout|round of 16|ثمن/i.test(round);
-    const bigComp = /world cup|champions|euro|copa|nations|كأس|أبطال/i.test(fx.league.name || '');
+    // ⚠️ برقم البطولة لا باسمها: التعبير النمطيّ القديم كان يمرّق أيّ بطولة فيها
+    // كلمة copa (Copa do Brasil · Libertadores · Copa Argentina) كبطولة كبرى.
+    const bigComp = isBigCompetition(fx.league);
     const winner = g.home > g.away ? t.home : (g.away > g.home ? t.away : null);
     const base = {
-      competition: fx.league.name, stage: round,
+      leagueId: fx.league.id != null ? Number(fx.league.id) : null,
+      competition: fx.league.name, country: fx.league.country || '', stage: round,
       home: { name: t.home.name, code: codeOf(t.home.name), score: g.home },
       away: { name: t.away.name, code: codeOf(t.away.name), score: g.away },
     };
