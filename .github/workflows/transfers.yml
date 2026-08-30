@@ -37,6 +37,16 @@ jobs:
           WORKER_URL: ${{ vars.WORKER_URL }}
         run: node match-bot/push-transfers.js --push
 
+      # شجرة الأدوار الإقصائيّة بنفس الوتيرة: القرعة والنتائج لا تتغيّر بالدقيقة،
+      # والخيوط تُحسَب من الفائزين فتتحدّث بعد كلّ دور.
+      - name: Collect and push knockout brackets
+        if: vars.APP_DATA_ENABLED == '1'
+        env:
+          FOOTBALL_API_KEY: ${{ secrets.FOOTBALL_API_KEY }}
+          INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+          WORKER_URL: ${{ vars.WORKER_URL }}
+        run: node match-bot/push-knockout.js --push
+
       - name: Skipped
         if: vars.APP_DATA_ENABLED != '1'
         run: echo "APP_DATA_ENABLED is not 1 — transfers collector is off on purpose."
