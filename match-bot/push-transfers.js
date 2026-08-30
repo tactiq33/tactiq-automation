@@ -44,7 +44,9 @@ const CLUBS = [
   { id: 505, name: 'Inter' },
   { id: 489, name: 'AC Milan' },
   { id: 492, name: 'Napoli' },
-  { id: 2506, name: 'Al Nassr' },
+  // ⚠️ 2939 وليس 2506: الرقم الخاطئ كان يرجّع صفر انتقالات بصمت (ظهر في السجلّ
+  // «Al Nassr: +0» بينما كلّ نادٍ آخر أعطى العشرات). مؤكَّد بـ`/teams?search=nassr`.
+  { id: 2939, name: 'Al Nassr' },
   { id: 2932, name: 'Al Hilal' },
   { id: 2938, name: 'Al Ittihad' },
 ];
