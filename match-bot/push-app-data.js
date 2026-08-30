@@ -184,12 +184,47 @@ async function detailsFor(id) {
 (async () => {
   if (!KEY) { console.error('FOOTBALL_API_KEY missing'); process.exit(1); }
 
-  const date = new Date().toISOString().slice(0, 10);
-  const raw = await api(`/fixtures?date=${date}`);
-  const matches = raw.filter((f) => LEAGUES.includes(f.league.id)).map(slimFixture);
-  console.log(`fixtures today: ${raw.length} · ours: ${matches.length}`);
+  /**
+   * ⚠️ نافذة أيّام لا يومًا واحدًا — عطل وصل للمالك:
+   * تبويب النتائج يعرض نافذة (أمس ← بعد أيّام)، وكان الساحب يجمع **اليوم فقط**،
+   * فأيّ مباراة من يوم آخر لم تكن في المخزون ⇒ شاشة «التفاصيل غير متاحة».
+   *
+   * والكلفة محسوبة: اليوم يُسحَب في كلّ جولة (يتغيّر باستمرار)، وبقيّة النافذة
+   * مرّة كلّ نصف ساعة فقط، والمباريات القديمة تبقى بالدمج مع المخزون السابق.
+   */
+  const day = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
+  const mins = new Date().getUTCMinutes();
+  const wide = process.argv.includes('--wide') || mins < 6 || (mins >= 30 && mins < 36);
+  const dates = wide ? [-1, 0, 1, 2, 3, 4, 5].map(day) : [day(0)];
+
+  const byId = new Map();
+  for (const d of dates) {
+    await sleep(GAP_MS);
+    const raw = await api(`/fixtures?date=${d}`);
+    for (const f of raw) {
+      if (!LEAGUES.includes(f.league.id)) continue;
+      byId.set(String(f.fixture.id), slimFixture(f));
+    }
+  }
+  console.log(`dates fetched: ${dates.length} (${wide ? 'wide window' : 'today only'}) · ours: ${byId.size}`);
 
   const kept = await previousDetails();
+
+  // دمج مع مباريات المخزون السابق: الأيّام التي لم تُسحب هذه الجولة تبقى معروضة
+  // وقابلة للفتح، بدل أن تختفي وتعطي شاشة خطأ.
+  try {
+    const prev = await fetch(`${WORKER}/football/matches`).then((r) => (r.ok ? r.json() : null));
+    for (const m of (prev && prev.matches) || []) {
+      if (!byId.has(String(m.id))) byId.set(String(m.id), m);
+    }
+  } catch {}
+
+  const matches = [...byId.values()].filter((m) => {
+    // لا تتراكم بلا حدّ: يُحتفَظ بنافذة أسبوع حول اليوم
+    const t = new Date(m.utcDate).getTime();
+    return t > Date.now() - 3 * 86400000 && t < Date.now() + 8 * 86400000;
+  });
+  console.log(`matches in snapshot after merge: ${matches.length}`);
   console.log(`details already stored: ${Object.keys(kept).length}`);
 
   const live = matches.filter((m) => LIVE.includes(m.status)).slice(0, MAX_LIVE);
