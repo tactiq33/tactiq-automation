@@ -1,7 +1,11 @@
 {
   "seen": [
     "Goal|Normal Goal|null|9|0",
-    "Goal|Normal Goal|31624|9|0"
+    "Goal|Normal Goal|31624|9|0",
+    "Goal|Penalty|31271|45|6",
+    "Goal|Normal Goal|281772|52|0",
+    "Goal|Normal Goal|386393|55|0",
+    "Goal|Normal Goal|986|70|0"
   ],
   "finalSent": false
 }
