@@ -469,7 +469,9 @@
     "caption_en": "",
     "hashtags": "",
     "week": 6,
-    "status": "pending"
+    "status": "error",
+    "attempts": 1,
+    "error": "Graph error: {\"message\":\"Missing or invalid image file\",\"type\":\"OAuthException\",\"code\":324,\"error_subcode\":2069019,\"is_transient\":true,\"error_user_title\":\"Image required\",\"error_user_msg\":\"Make sure that your Page post includes an image that can be used in an ad.\",\"fbtrace_id\":\"AN7oOjSdVzHbtAIFBY_PcfV\"}"
   },
   {
     "date": "2026-09-13",
