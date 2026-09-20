@@ -1,4 +1,8 @@
 {
-  "seen": [],
+  "seen": [
+    "Card|Red Card|361497|52|0",
+    "Goal|Penalty|563|53|0",
+    "Goal|Normal Goal|8489|59|0"
+  ],
   "finalSent": false
 }
