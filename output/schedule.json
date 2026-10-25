@@ -1016,8 +1016,8 @@
     "hashtags": "",
     "week": 12,
     "status": "error",
-    "attempts": 4,
-    "error": "Graph error: {\"message\":\"Missing or invalid image file\",\"type\":\"OAuthException\",\"code\":324,\"error_subcode\":2069019,\"is_transient\":true,\"error_user_title\":\"Image required\",\"error_user_msg\":\"Make sure that your Page post includes an image that can be used in an ad.\",\"fbtrace_id\":\"AGbW5srFqib5c7KD50sMlyB\"}"
+    "attempts": 5,
+    "error": "Graph error: {\"message\":\"Missing or invalid image file\",\"type\":\"OAuthException\",\"code\":324,\"error_subcode\":2069019,\"is_transient\":true,\"error_user_title\":\"Image required\",\"error_user_msg\":\"Make sure that your Page post includes an image that can be used in an ad.\",\"fbtrace_id\":\"AHY0ee1qwl-9eid_dYZ4BrP\"}"
   },
   {
     "date": "2026-10-25",
