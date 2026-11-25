@@ -34,8 +34,13 @@ jobs:
       - run: npm ci --omit=dev || npm install --omit=dev
 
       # كلّ خطوة مستقلّة: توقّف الانتقالات (حساب موقوف مثلًا) ما بيمنع الشجرة.
+      # API_FOOTBALL_PAUSED = 1 ⇒ صفر طلب لـAPI-Football (طلب دعمهم أثناء مراجعة التوقيف).
+      - name: Transfers paused
+        if: vars.API_FOOTBALL_PAUSED == '1'
+        run: echo "::notice title=transfers::API-Football calls are paused (API_FOOTBALL_PAUSED=1) until the account is reinstated."
+
       - name: Collect and push transfers
-        if: vars.APP_DATA_ENABLED == '1'
+        if: vars.APP_DATA_ENABLED == '1' && vars.API_FOOTBALL_PAUSED != '1'
         env:
           API_PLAN: ${{ vars.API_PLAN }}
           FOOTBALL_API_KEY: ${{ secrets.FOOTBALL_API_KEY }}
