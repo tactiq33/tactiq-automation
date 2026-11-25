@@ -55,8 +55,42 @@ const CLUBS = [
 const MONTHS_BACK = 6;
 const MAX_ITEMS = 60;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-let calls = 0;
+const { createClient, IS_FREE, ProviderStop, stopGracefully } = require('./provider');
+
+/**
+ * ── الباقة المجّانيّة (100 نداء/يوم) ─────────────────────────────────────
+ * الجولة القديمة = نداء لكلّ نادٍ (19) مرّتين باليوم. على المجّانيّ صارت **دَور**:
+ * كلّ ستّ ساعات 5 أندية فقط، فالأندية الـ19 تتحدّث كلّها خلال يوم، والسقف 5 نداءات
+ * للجولة (≤ 20 باليوم مهما زاد التشغيل، لأنّ نفس النافذة تعيد نفس الأندية).
+ * والنتيجة **تُدمَج** مع القائمة الموجودة على السيرفر بدل ما تحلّ محلّها.
+ *
+ * ⚠️ عطل حقيقيّ صُحّح هنا: لمّا الحساب انوقف، كلّ نادٍ رجّع خطأ، فالسكربت دفع قائمة
+ * **فاضية** للسيرفر ومسح انتقالات التطبيق، والجولة طلعت «ناجحة». الآن: أيّ رفض على
+ * مستوى الحساب يوقف الجولة بلا دفع، وقائمة فاضية ما تندفع أبدًا.
+ */
+const PER_RUN = IS_FREE ? Number(process.env.TRANSFERS_PER_RUN || 5) : CLUBS.length;
+
+function clubsForThisRun() {
+  if (PER_RUN >= CLUBS.length) return CLUBS;
+  const windowIdx = Math.floor(Date.now() / (6 * 3600 * 1000));   // نافذة 6 ساعات
+  const start = (windowIdx * PER_RUN) % CLUBS.length;
+  return Array.from({ length: PER_RUN }, (_, i) => CLUBS[(start + i) % CLUBS.length]);
+}
+
+/** القائمة الحاليّة على السيرفر (نداء لسيرفرنا، صفر من حصّة المزوّد). */
+async function previousTransfers() {
+  if (!WORKER) return [];
+  try {
+    const res = await fetch(`${WORKER}/football/transfers`);
+    if (!res.ok) return [];
+    const body = await res.json();
+    return Array.isArray(body.transfers) ? body.transfers : [];
+  } catch {
+    return [];
+  }
+}
+
+const client = createClient({ label: 'push-transfers', maxCalls: PER_RUN });
 
 /**
  * أسماء المزوّد ليست نظيفة دائمًا، وهذان عيبان **مرئيّان فعلًا** في مخرَجه:
@@ -75,29 +109,23 @@ function cleanName(raw) {
     .trim();
 }
 
-async function api(path) {
-  calls++;
-  const res = await fetch(HOST + path, { headers: { 'x-apisports-key': KEY } });
-  const body = await res.json();
-  if (body.errors && !Array.isArray(body.errors) && Object.keys(body.errors).length) {
-    throw new Error('provider: ' + JSON.stringify(body.errors));
-  }
-  return body.response || [];
-}
-
 (async () => {
-  if (!KEY) { console.error('FOOTBALL_API_KEY missing'); process.exit(1); }
+  const clubs = clubsForThisRun();
+  await client.preflight(clubs.length);
+  console.log(`clubs this run (${clubs.length}/${CLUBS.length}): ${clubs.map((c) => c.name).join(', ')}`);
 
   const since = new Date(Date.now() - MONTHS_BACK * 30 * 86400000).toISOString().slice(0, 10);
   const seen = new Set();
   const items = [];
+  let fetchedOk = 0;
 
-  for (const club of CLUBS) {
-    await sleep(350);   // الدفعة السريعة مرفوضة عند المزوّد (مقيس)
+  for (const club of clubs) {
     let rows = [];
     try {
-      rows = await api(`/transfers?team=${club.id}`);
+      rows = await client.api(`/transfers?team=${club.id}`);   // التباعد داخل العميل
+      fetchedOk++;
     } catch (e) {
+      if (e instanceof ProviderStop) throw e;   // حساب موقوف/حصّة/باقة: وقوف بلا دفع
       console.log(`  ✖ ${club.name}: ${e.message}`);
       continue;
     }
@@ -131,11 +159,25 @@ async function api(path) {
     console.log(`  ${club.name}: +${added}`);
   }
 
+  // دمج مع الموجود: أندية الجولات السابقة تبقى معروضة لحدّ ما يجي دورها.
+  const fresh = items.length;
+  for (const old of await previousTransfers()) {
+    if (!old || !old.date || old.date < since || !old.from || !old.to) continue;
+    const key = `${old.playerId}|${old.from.id}|${old.to.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push(old);
+  }
+
   items.sort((a, b) => b.date.localeCompare(a.date));
   const top = items.slice(0, MAX_ITEMS);
-  console.log(`\nprovider calls: ${calls} · unique transfers kept: ${top.length} (of ${items.length})`);
+  console.log(`\nprovider calls: ${client.calls} · fresh: ${fresh} · kept after merge: ${top.length} (of ${items.length})`);
   if (top[0]) console.log(`  newest: ${top[0].date}  ${top[0].player}  ${top[0].from.name} → ${top[0].to.name}`);
 
+  if (!fetchedOk || !top.length) {
+    console.log('nothing new to push — the server list is left untouched.');
+    return;
+  }
   if (!PUSH) { console.log('(dry run — add --push to send)'); return; }
   if (!WORKER || !TOKEN) { console.error('WORKER_URL or INGEST_TOKEN missing'); process.exit(1); }
 
@@ -146,4 +188,8 @@ async function api(path) {
   });
   console.log(`push → HTTP ${res.status} ${await res.text()}`);
   if (!res.ok) process.exit(1);
-})().catch((e) => { console.error('push-transfers failed:', e.message || e); process.exit(1); });
+})().catch((e) => {
+  if (stopGracefully('push-transfers', e)) return;
+  console.error('push-transfers failed:', e.message || e);
+  process.exit(1);
+});

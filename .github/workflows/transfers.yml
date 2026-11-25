@@ -1,10 +1,14 @@
 name: TactIQ Transfers
 
 # ينسخ أحدث الانتقالات الحقيقيّة إلى سيرفرنا، ليعرضها التطبيق بصور اللاعبين
-# وشعارات الناديين بدل عناوين أخبار نصّيّة.
+# وشعارات الناديين بدل عناوين أخبار نصّيّة. ومعها شجرة الأدوار الإقصائيّة.
 #
-# ⚠️ مرّتان في اليوم بقصد: الانتقالات لا تتغيّر بالدقيقة، وكلّ جولة = نداء لكلّ
-# نادٍ (~19 نداء). جدولة كثيفة هنا تصرف الحصّة على بيانات ثابتة.
+# ── الكلفة على الباقة المجّانيّة (API_PLAN=free) ─────────────────────────
+#   الانتقالات: 5 أندية بالجولة بالدَّور (نافذة 6 ساعات) ⇒ ≤ 20 نداء باليوم مهما
+#               تكرّر التشغيل، والأندية الـ19 كلّها بتتحدّث خلال يوم. والنتيجة تندمج
+#               مع الموجود، وقائمة فاضية ما تندفع أبدًا.
+#   الشجرة:    من football-data.org ⇒ صفر نداء من حصّة API-Football.
+#   والتشغيل: GitHub 06:20 و18:20 UTC + الـWorker 12:00 و20:00 UTC.
 #
 # مطفأ حتى تصير المتغيّرة APP_DATA_ENABLED = 1 (نفس مفتاح ساحب المباريات).
 
@@ -23,15 +27,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
       - run: npm ci --omit=dev || npm install --omit=dev
 
+      # كلّ خطوة مستقلّة: توقّف الانتقالات (حساب موقوف مثلًا) ما بيمنع الشجرة.
       - name: Collect and push transfers
         if: vars.APP_DATA_ENABLED == '1'
         env:
+          API_PLAN: ${{ vars.API_PLAN }}
           FOOTBALL_API_KEY: ${{ secrets.FOOTBALL_API_KEY }}
           INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
           WORKER_URL: ${{ vars.WORKER_URL }}
@@ -40,9 +46,11 @@ jobs:
       # شجرة الأدوار الإقصائيّة بنفس الوتيرة: القرعة والنتائج لا تتغيّر بالدقيقة،
       # والخيوط تُحسَب من الفائزين فتتحدّث بعد كلّ دور.
       - name: Collect and push knockout brackets
-        if: vars.APP_DATA_ENABLED == '1'
+        if: always() && vars.APP_DATA_ENABLED == '1'
         env:
+          API_PLAN: ${{ vars.API_PLAN }}
           FOOTBALL_API_KEY: ${{ secrets.FOOTBALL_API_KEY }}
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
           INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
           WORKER_URL: ${{ vars.WORKER_URL }}
         run: node match-bot/push-knockout.js --push

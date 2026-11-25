@@ -36,13 +36,15 @@ const CYCLE = [
   ['post-19', 'post-03', 'story'],
   ['post-14', 'post-06', 'post-11'],
   ['post-04', 'post-02', 'post-15'],
-  ['post-23', 'post-17', 'story'],
+  // ⚠️ كانت post-23 وهي غير موجودة (آخر بوست post-22) ⇒ خانة بلا صورة كلّ 6 أسابيع،
+  // وفشلت فعلًا على Meta بـ«Missing or invalid image file» (2026-09-11 و2026-10-23).
+  ['post-22', 'post-17', 'story'],
   ['post-05', 'post-16', 'post-16'],
   ['post-07', 'post-03', 'post-15'],
   ['post-08', 'post-06', 'story'],
   ['post-14', 'post-12', 'post-18'],
   ['post-04', 'post-13', 'post-15'],
-  ['post-23', 'post-10', 'story'],
+  ['post-09', 'post-10', 'story'],
 ];
 
 // ===== الفيديوهات العضويّة (automation/videos/ads_1..10.mp4) — تدور على السنة =====
@@ -74,15 +76,17 @@ function pick(manifest, name, lang) {
   return manifest.find((m) => m.name === name && m.lang === (lang || 'ar'));
 }
 
+// ⚠️ بالـUTC قصدًا: النسخة القديمة كانت تحسب بالتوقيت المحلّيّ ثمّ تقرأ بـtoISOString
+// (UTC)، فعلى جهاز بتوقيت بيروت كلّ يوم كان يرجع يوم لورا («الاثنين» = الأحد).
 function addDays(dateStr, days) {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() + days);
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
 // يرجّع أوّل اثنين >= تاريخ البداية
 function firstMonday(startStr) {
-  const d = new Date(startStr + 'T00:00:00');
-  const day = d.getDay(); // 0=أحد .. 1=اثنين
+  const d = new Date(startStr + 'T00:00:00Z');
+  const day = d.getUTCDay(); // 0=أحد .. 1=اثنين
   const diff = (day <= 1) ? (1 - day) : (8 - day);
   return addDays(startStr, diff);
 }
@@ -94,6 +98,12 @@ function csvEscape(s) {
 
 (function main() {
   const manifest = loadManifest();
+  // أيّ اسم بالدورة مش موجود بالـmanifest = منشور بلا صورة ⇒ وقّف قبل ما ينكتب جدول ناقص.
+  const missing = [...new Set(CYCLE.flat())].filter((n) => !pick(manifest, n, 'ar') || !pick(manifest, n, 'en'));
+  if (missing.length) {
+    console.error('❌ هالمنشورات مش موجودة بـ output/manifest.json:', missing.join(', '));
+    process.exit(1);
+  }
   const monday = firstMonday(START);
   const rows = [];
 

@@ -17,9 +17,6 @@ const { build, formatMessage, sendTelegram } = require('./notify');
 const { decide } = require('./decide');
 const { isBigCompetition } = require('./rules');
 
-const KEY = process.env.FOOTBALL_API_KEY;
-const HOST = 'https://v3.football.api-sports.io';
-
 function arg(name, def) {
   const a = process.argv.find((x) => x.startsWith('--' + name));
   if (!a) return def;
@@ -44,11 +41,12 @@ const NAME2CODE = {
 };
 function codeOf(name) { return NAME2CODE[name] || ''; }
 
+// كلّ النداءات من العميل الموحّد: سقف للجولة، حصّة محروسة، ووقوف هادئ عند تعليق
+// الحساب أو انتهاء الحصّة. فحصة واحدة = نداءين (المباراة + الأحداث).
+const { createClient, IS_FREE, ProviderStop, stopGracefully, pausedOnFreePlan } = require('./provider');
+const client = createClient({ label: 'watch', maxCalls: ONCE ? 2 : 400 });
 async function api(p) {
-  const res = await fetch(HOST + p, { headers: { 'x-apisports-key': KEY } });
-  const j = await res.json();
-  if (j.errors && Object.keys(j.errors).length) throw new Error(JSON.stringify(j.errors));
-  return j;
+  return { response: await client.api(p) };
 }
 
 function loadState() {
@@ -174,20 +172,39 @@ async function poll() {
 }
 
 (async () => {
-  if (!KEY) { console.error('❌ FOOTBALL_API_KEY ناقص بـ .env'); process.exit(1); }
   if (!FIXTURE) { console.error('❌ لازم --fixture=ID (جيبو بـ find-fixture.js)'); process.exit(1); }
+  if (IS_FREE && !process.argv.includes('--force')) {
+    pausedOnFreePlan('watch', 'Each check costs 2 calls; live watching does not fit 100/day. Use --force for a one-off manual check.');
+    return;
+  }
 
   console.log(`👀 بمراقبة المباراة ${FIXTURE} | كل ${INTERVAL / 60000} دقيقة | ${SEND ? 'بعث تيليغرام مفعّل' : 'وضع طباعة'}`);
+  try {
+    await client.preflight(2);
+  } catch (e) {
+    if (stopGracefully('watch', e)) return;
+    throw e;
+  }
 
-  if (ONCE) { await poll(); return; } // خروج طبيعيّ بعد تفريغ الاتصالات
+  if (ONCE) {
+    try { await poll(); } catch (e) { if (!stopGracefully('watch', e)) throw e; }
+    return; // خروج طبيعيّ بعد تفريغ الاتصالات
+  }
 
   const timer = setInterval(async () => {
     try {
       const done = await poll();
       if (done) { console.log('🏁 المباراة خلصت — إيقاف المراقبة.'); clearInterval(timer); }
-    } catch (e) { console.log('⚠️ خطأ بالفحص (بيكمّل):', e.message); }
+    } catch (e) {
+      // تعليق الحساب أو انتهاء الحصّة ما بيتصلّح بالإعادة: وقّف بدل ما تكمّل تصرف.
+      if (e instanceof ProviderStop) { stopGracefully('watch', e); clearInterval(timer); return; }
+      console.log('⚠️ خطأ بالفحص (بيكمّل):', e.message);
+    }
   }, INTERVAL);
 
   // فحص أوّل فوريّ
-  try { await poll(); } catch (e) { console.log('⚠️', e.message); }
-})();
+  try { await poll(); } catch (e) {
+    if (e instanceof ProviderStop) { stopGracefully('watch', e); clearInterval(timer); return; }
+    console.log('⚠️', e.message);
+  }
+})().catch((e) => { console.error('❌ watch failed:', e.message || e); process.exit(1); });

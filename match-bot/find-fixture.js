@@ -8,15 +8,14 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env'
 const KEY = process.env.FOOTBALL_API_KEY;
 const HOST = 'https://v3.football.api-sports.io';
 
+const { createClient, stopGracefully } = require('./provider');
+const client = createClient({ label: 'find-fixture', maxCalls: 1 });
 async function api(path) {
-  const res = await fetch(HOST + path, { headers: { 'x-apisports-key': KEY } });
-  const j = await res.json();
-  if (j.errors && Object.keys(j.errors).length) throw new Error(JSON.stringify(j.errors));
-  return j;
+  return { response: await client.api(path) };
 }
 
 (async () => {
-  if (!KEY) { console.error('❌ FOOTBALL_API_KEY ناقص بـ .env'); process.exit(1); }
+  await client.preflight(1);
   const date = process.argv[2] || new Date().toISOString().slice(0, 10);
   const filter = (process.argv[3] || '').toLowerCase();
 
@@ -36,4 +35,4 @@ async function api(path) {
   });
   console.log('👉 خُذ الـ🆔 (fixture id) واستعملو بالمراقِب:  node watch.js --fixture=ID');
   console.log(`(الطلبات المستهلكة اليوم بعد هالنداء بتزيد ١)`);
-})().catch((e) => { console.error('❌ خطأ:', e.message || e); process.exit(1); });
+})().catch((e) => { if (stopGracefully('find-fixture', e)) return; console.error('❌ خطأ:', e.message || e); process.exit(1); });

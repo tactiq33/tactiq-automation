@@ -1,13 +1,19 @@
 name: TactIQ Auto Publish
 
 # ينشر المستحقّ تلقائيًّا بلا حاسوبك (على سيرفرات GitHub — مجّاني).
-# ملاحظة: توقيت cron بالـ UTC. عدّل الأوقات حسب توقيتك.
+# ما بيستعمل API-Football أبدًا ⇒ ما بيتأثّر بالباقة المجّانيّة.
+# ملاحظة: توقيت cron بالـ UTC.
 on:
   schedule:
     # يشتغل يوميًّا مرّتين وينشر أي منشور/فيديو مستحقّ (publish.js يفلتر حسب الوقت).
     - cron: '0 8 * * *'    # يوميًّا 08:00 UTC
     - cron: '0 17 * * *'   # يوميًّا 17:00 UTC
-  workflow_dispatch: {}     # زرّ تشغيل يدويّ
+  workflow_dispatch:        # زرّ تشغيل يدويّ
+    inputs:
+      mode:
+        description: 'publish = نشر المستحقّ · check = فحص المفاتيح وتجربة بلا نشر'
+        required: true
+        default: 'publish'
 
 # لا يُلغى run بسبب run آخر: الجدولة مرّتين يوميًّا قد تتقاطع مع تشغيل يدويّ،
 # والإلغاء التلقائيّ يفقد حالة النشر ويجعل منشورًا مستحقًّا يضيع.
@@ -21,30 +27,50 @@ jobs:
     timeout-minutes: 15      # بدل التعليق حتى الإلغاء بعد 6 ساعات
     permissions:
       contents: write   # لازم حتى يحفظ حالة النشر (schedule.json) ويمنع تكرار المنشور
+    env:
+      POST_LANG: ${{ vars.POST_LANG }}
+      BASE_URL: ${{ vars.BASE_URL }}
+      VIDEO_BASE_URL: ${{ vars.VIDEO_BASE_URL }}
+      GRAPH_VERSION: ${{ vars.GRAPH_VERSION }}
+      FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+      FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+      IG_USER_ID: ${{ secrets.IG_USER_ID }}
+      IG_TOKEN: ${{ secrets.IG_TOKEN }}
+      TIKTOK_TOKEN: ${{ secrets.TIKTOK_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'   # 20 صار deprecated عند GitHub (تحذير في كلّ run)
       - run: npm ci --omit=dev || npm install --omit=dev
+
+      # صلاحيّة توكن Meta وتاريخ انتهائه بأعلى صفحة التشغيل، قبل ما يخلص فجأة.
+      # معلوماتيّ: ما بيوقف النشر.
+      - name: Check Meta / Instagram tokens
+        continue-on-error: true
+        run: node publish.js --check
+
+      - name: Dry run (check mode)
+        if: github.event.inputs.mode == 'check'
+        run: node publish.js --dry-run
+
       - name: Publish due posts
-        env:
-          POST_LANG: ${{ vars.POST_LANG }}
-          BASE_URL: ${{ vars.BASE_URL }}
-          VIDEO_BASE_URL: ${{ vars.VIDEO_BASE_URL }}
-          GRAPH_VERSION: ${{ vars.GRAPH_VERSION }}
-          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          IG_USER_ID: ${{ secrets.IG_USER_ID }}
-          IG_TOKEN: ${{ secrets.IG_TOKEN }}
-          TIKTOK_TOKEN: ${{ secrets.TIKTOK_TOKEN }}
+        if: github.event.inputs.mode != 'check'
         run: node publish.js
+
       # يُحفظ الحالة حتى لو فشل النشر، وإلّا يُعاد نشر ما نُشر فعلًا
       - name: Commit updated schedule status
-        if: always()
+        if: always() && github.event.inputs.mode != 'check'
         run: |
           git config user.name "tactiq-bot"
           git config user.email "bot@tactiq.local"
           git add output/schedule.json || true
-          git commit -m "chore: update publish status [skip ci]" || echo "no changes"
-          git push || echo "nothing to push"
+          git commit -m "chore: update publish status [skip ci]" || { echo "no changes"; exit 0; }
+          # ⚠️ بوت المباريات بيكتب بنفس المستودع: بلا سحب قبل الدفع، الدفع بيرفض،
+          # الحالة بتضيع، والجولة الجايي بتنشر نفس المنشور مرّة تانية.
+          for i in 1 2 3; do
+            git pull --rebase --autostash && git push && exit 0
+            sleep $((i * 5))
+          done
+          echo "::error title=publish::could not save schedule.json — next run may repost"
+          exit 1

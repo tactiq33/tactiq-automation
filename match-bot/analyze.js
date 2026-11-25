@@ -15,15 +15,19 @@ const HOST = 'https://v3.football.api-sports.io';
 function arg(n){ var a=process.argv.find(x=>x.startsWith('--'+n)); return a? (a.includes('=')?a.split('=')[1]:true):null; }
 const FIXTURE = arg('fixture'), SEND = !!arg('send');
 
-async function api(p){ const r=await fetch(HOST+p,{headers:{'x-apisports-key':KEY}}); const j=await r.json(); if(j.errors&&Object.keys(j.errors).length) throw new Error(JSON.stringify(j.errors)); return j; }
+// العميل الموحّد: 3 نداءات بالتحليل، ووقوف هادئ إذا الحساب موقوف أو الحصّة خلصت.
+const { createClient, stopGracefully } = require('./provider');
+const client = createClient({ label: 'analyze', maxCalls: 3 });
+async function api(p){ return { response: await client.api(p) }; }
 
 function statVal(arr, type){ var s=(arr||[]).find(x=>x.type===type); return s? s.value : '—'; }
 
 (async () => {
-  if(!KEY){ console.error('❌ FOOTBALL_API_KEY ناقص'); process.exit(1); }
   if(!FIXTURE){ console.error('❌ لازم --fixture=ID'); process.exit(1); }
+  await client.preflight(3);
 
   const fx = (await api(`/fixtures?id=${FIXTURE}`)).response[0];
+  if(!fx){ console.log('⚠️ ما لقيت المباراة (تأكّد من الرقم).'); return; }
   const t = fx.teams, g = fx.goals, lg = fx.league;
   const stats = (await api(`/fixtures/statistics?fixture=${FIXTURE}`)).response || [];
   const lineups = (await api(`/fixtures/lineups?fixture=${FIXTURE}`)).response || [];
@@ -62,4 +66,4 @@ ${scoreLine} — ${lg.name} (${lg.round}).
 
   console.log('\n──────────────\n' + msg + '\n──────────────');
   if(SEND){ try{ await sendTelegram(msg); console.log('✅ انبعت'); }catch(e){ console.log('⚠️', e.message); } }
-})().catch(e=>{ console.error('❌ خطأ:', e.message||e); });
+})().catch(e=>{ if (stopGracefully('analyze', e)) return; console.error('❌ خطأ:', e.message||e); process.exitCode = 1; });

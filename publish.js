@@ -190,12 +190,55 @@ async function publishTikTok(item) {
   return 'tiktok pending setup';
 }
 
+// ===== فحص المفاتيح بلا نشر (node publish.js --check) =====
+// يطبع صلاحيّة توكن Meta وتاريخ انتهائه، وهل صفحة الفيسبوك وحساب إنستغرام مقروءين،
+// بلا ما ينشر شي. المفاتيح نفسها ما بتنطبع أبدًا.
+function note(level, title, msg) {
+  log(`${level === 'error' ? '❌' : level === 'warning' ? '⚠️' : 'ℹ️'} ${title}: ${msg}`);
+  if (process.env.GITHUB_ACTIONS) log(`::${level} title=${title}::${msg}`);
+}
+const fmtDate = (sec) => (sec ? new Date(sec * 1000).toISOString().slice(0, 10) : 'never');
+
+async function checkTokens() {
+  let ok = true;
+  if (!cfg.fbPage || !cfg.fbToken) { note('error', 'Meta', 'FB_PAGE_ID / FB_PAGE_TOKEN missing'); return false; }
+  try {
+    const d = (await graphGet(`https://graph.facebook.com/${GV}/debug_token?input_token=${encodeURIComponent(cfg.fbToken)}&access_token=${encodeURIComponent(cfg.fbToken)}`)).data || {};
+    if (!d.is_valid) { note('error', 'Meta token', 'FB_PAGE_TOKEN is NOT valid' + (d.error ? ' — ' + d.error.message : '')); ok = false; }
+    else {
+      const days = d.expires_at ? Math.floor((d.expires_at * 1000 - Date.now()) / 86400000) : null;
+      const level = days != null && days < 14 ? 'warning' : 'notice';
+      note(level, 'Meta token', `valid · type ${d.type} · expires ${fmtDate(d.expires_at)}${days != null ? ` (${days} days)` : ''} · data access until ${fmtDate(d.data_access_expires_at)}`);
+    }
+  } catch (e) {
+    note('warning', 'Meta token', 'debug_token unreadable: ' + e.message);
+  }
+  await resolvePageToken();
+  try {
+    const p = await graphGet(`https://graph.facebook.com/${GV}/${cfg.fbPage}?fields=name&access_token=${encodeURIComponent(cfg.fbToken)}`);
+    note('notice', 'Facebook page', `reachable: ${p.name}`);
+  } catch (e) { note('error', 'Facebook page', e.message); ok = false; }
+  if (cfg.igUser) {
+    try {
+      const u = await graphGet(`https://graph.facebook.com/${GV}/${cfg.igUser}?fields=username&access_token=${encodeURIComponent(cfg.igToken)}`);
+      note('notice', 'Instagram', `reachable: @${u.username}`);
+    } catch (e) { note('error', 'Instagram', e.message); ok = false; }
+  } else { note('error', 'Instagram', 'IG_USER_ID missing'); ok = false; }
+  if (!cfg.ttToken) note('notice', 'TikTok', 'TIKTOK_TOKEN not set — TikTok posting stays off (needs app approval)');
+  return ok;
+}
+
 function isDue(item, now) {
   const dt = new Date(item.date + 'T' + (item.time || '12:00') + ':00');
   return dt.getTime() <= now.getTime();
 }
 
 (async () => {
+  if (process.argv.includes('--check')) {
+    const ok = await checkTokens();
+    if (!ok) process.exitCode = 1;
+    return;
+  }
   if (!fs.existsSync(SCHEDULE)) {
     console.error('❌ ما لقيت schedule.json — شغّل: npm run schedule');
     process.exit(1);
@@ -227,19 +270,43 @@ function isDue(item, now) {
     const mediaName = item.media_type === 'VIDEO' ? item.video : (LANG === 'en' ? item.image_en : item.image_ar);
     log(`\n• ${item.date} ${item.time} — ${item.media_type} — ${mediaName}`);
 
+    // ⚠️ عنصر بلا ملفّ (خانة post-23 غير الموجودة بالجدول القديم) كان يُرسَل لـMeta خمس
+    // مرّات ويرجع «Missing or invalid image file». الآن يُعلَّم مرّة وحدة بسبب واضح.
+    if (!mediaName) {
+      log('   ⏭️  بلا ملفّ صورة/فيديو بالجدول — ما رح ينبعت');
+      if (!DRY) {
+        item.status = 'error';
+        item.attempts = RETRY_LIMIT;
+        item.error = 'no media file in schedule.json for this slot';
+        fs.writeFileSync(SCHEDULE, JSON.stringify(rows, null, 2), 'utf8');
+      }
+      continue;
+    }
+
     if (DRY) { log('   (تجربة) الكابشن:', caption.replace(/\n/g, ' ').slice(0, 80) + '…'); continue; }
 
-    const results = [];
+    // المنصّات اللي نجحت تنحفظ: إذا فشل إنستغرام بعد ما نجح فيسبوك، الإعادة ما
+    // بتنشر على فيسبوك مرّة تانية (كانت تعطي منشور مكرّر عالصفحة).
+    item.done_platforms = item.done_platforms || [];
+    const results = item.partial_results || [];
     try {
       const isVideo = item.media_type === 'VIDEO';
       for (const p of item.platforms) {
-        if (p === 'facebook') results.push(isVideo ? await publishFacebookVideo(item, caption) : await publishFacebook(item, caption));
-        else if (p === 'instagram') results.push(isVideo ? await publishInstagramVideo(item, caption) : await publishInstagram(item, caption));
-        else if (p === 'tiktok') results.push(await publishTikTok(item));
+        if (item.done_platforms.includes(p)) continue;
+        let r;
+        if (p === 'facebook') r = isVideo ? await publishFacebookVideo(item, caption) : await publishFacebook(item, caption);
+        else if (p === 'instagram') r = isVideo ? await publishInstagramVideo(item, caption) : await publishInstagram(item, caption);
+        else if (p === 'tiktok') r = await publishTikTok(item);
+        if (r) results.push(r);
+        item.done_platforms.push(p);
+        item.partial_results = results;
+        fs.writeFileSync(SCHEDULE, JSON.stringify(rows, null, 2), 'utf8');
       }
       item.status = 'done';
       item.published_at = new Date().toISOString();
       item.result = results.join(' | ');
+      delete item.partial_results;
+      delete item.error;
       log('   ✅', results.join(' | '));
     } catch (e) {
       item.attempts = (item.attempts || 0) + 1;  // so a permanently broken item stops eventually

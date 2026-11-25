@@ -2,10 +2,16 @@ name: TactIQ Match Bot
 
 # مراقبة المباريات وإرسال البرومتات على تيليغرام، بلا حاسوبك.
 #
-# ⚠️ مطفأ افتراضيًّا. يشتغل فقط لمّا تصير المتغيّرة MATCH_BOT_ENABLED = 1
-# في Settings → Secrets and variables → Actions → Variables.
-# السبب: الباقة المجّانيّة لـAPI-Football = 100 طلب/يوم، والمراقبة الدائمة
-# تستهلكها في مباراة واحدة. فيُترك مطفأً حتى يُشترى المدفوع، ثمّ يُفتح بسطر واحد.
+# ── الباقة (المتغيّرة API_PLAN في Settings → Secrets and variables → Actions → Variables)
+#   free (الافتراضيّ):  المعاينة الصباحيّة شغّالة من football-data.org (صفر نداء من
+#                       حصّة API-Football). المراقبة المباشرة **موقوفة**: جولة كلّ 10
+#                       دقائق ≈ 300 نداء باليوم، والمجّانيّ 100.
+#   paid:              كلّ شي شغّال متل قبل.
+# ومفتاح التشغيل العامّ يبقى MATCH_BOT_ENABLED = 1.
+#
+# ⚠️ الـWorker (tactiq-ai) بيشغّل هالملفّ كلّ 10 دقائق بين 12:00 و24:00 UTC
+# (workflow_dispatch بلا مُدخلات ⇒ job=live). على المجّانيّ الجولة بتسجّل «موقوفة»
+# بثواني وبلا ولا نداء.
 #
 # توقيت cron بالـUTC.
 
@@ -13,7 +19,7 @@ on:
   schedule:
     # تذكير قمم اليوم، مرّة صباحًا (09:00 بتوقيت بيروت صيفًا = 06:00 UTC)
     - cron: '0 6 * * *'
-    # جولة مراقبة كلّ عشر دقائق خلال ساعات المباريات (14:00–23:59 UTC)
+    # جولة مراقبة كلّ عشر دقائق خلال ساعات المباريات (14:00–23:59 UTC) — للمدفوع فقط
     - cron: '*/10 14-23 * * *'
   workflow_dispatch:
     inputs:
@@ -35,8 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
       - run: npm ci --omit=dev || npm install --omit=dev
@@ -44,28 +50,39 @@ jobs:
       - name: Morning preview
         if: vars.MATCH_BOT_ENABLED == '1'
         env:
+          API_PLAN: ${{ vars.API_PLAN }}
           FOOTBALL_API_KEY: ${{ secrets.FOOTBALL_API_KEY }}
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node match-bot/preview.js --send
 
       - name: Skipped
         if: vars.MATCH_BOT_ENABLED != '1'
-        run: echo "MATCH_BOT_ENABLED is not 1 — bot is off on purpose (free API quota)."
+        run: echo "MATCH_BOT_ENABLED is not 1 — bot is off on purpose."
+
+  # على المجّانيّ: سطر بالسجلّ وبس — بلا checkout ولا تثبيت ولا نداء.
+  live-paused:
+    if: ((github.event_name == 'schedule' && github.event.schedule != '0 6 * * *') || github.event.inputs.job == 'live') && vars.API_PLAN != 'paid'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Live watching is paused on the free plan
+        run: echo "::notice title=match-bot::Live watching is paused — API-Football free plan (100 calls/day) cannot fit it (~300/day). Set the variable API_PLAN=paid after upgrading."
 
   live:
-    # جولات المراقبة.
+    # جولات المراقبة — المدفوع فقط.
     # الشرط مكتوب بـevent_name لا بالمقارنة وحدها: بلاها، التشغيل اليدويّ
     # للمعاينة كان يُشغّل هذه الوظيفة أيضًا (لأنّ github.event.schedule فاضية
     # في التشغيل اليدويّ فتنجح المقارنة "لا تساوي").
-    if: (github.event_name == 'schedule' && github.event.schedule != '0 6 * * *') || github.event.inputs.job == 'live'
+    if: ((github.event_name == 'schedule' && github.event.schedule != '0 6 * * *') || github.event.inputs.job == 'live') && vars.API_PLAN == 'paid'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
       contents: write   # لازم لحفظ ملفّات state ومنع تكرار نفس الحدث
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
       - run: npm ci --omit=dev || npm install --omit=dev
@@ -73,6 +90,7 @@ jobs:
       - name: Watch live fixtures
         if: vars.MATCH_BOT_ENABLED == '1'
         env:
+          API_PLAN: ${{ vars.API_PLAN }}
           FOOTBALL_API_KEY: ${{ secrets.FOOTBALL_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -81,8 +99,9 @@ jobs:
         run: |
           set -e
           MAXN="${MATCH_BOT_MAX:-2}"
-          # نداء واحد للـAPI يعطي أرقام المباريات المستحقّة
-          IDS=$(node match-bot/live-ids.js --ids --max="$MAXN" || true)
+          # نداء واحد للـAPI يعطي أرقام المباريات المستحقّة.
+          # الأسطر الرقميّة وحدها تُقرأ: أيّ تحذير يطبعه السكربت ما بيصير «رقم مباراة».
+          IDS=$(node match-bot/live-ids.js --ids --max="$MAXN" | grep -E '^[0-9]+$' || true)
           if [ -z "$IDS" ]; then
             echo "no live fixture worth watching this pass"
             exit 0
@@ -96,7 +115,7 @@ jobs:
 
       - name: Skipped
         if: vars.MATCH_BOT_ENABLED != '1'
-        run: echo "MATCH_BOT_ENABLED is not 1 — bot is off on purpose (free API quota)."
+        run: echo "MATCH_BOT_ENABLED is not 1 — bot is off on purpose."
 
       # تُحفظ الحالة دائمًا: لو فشل الإرسال بعد ما سُجّل الحدث، الجولة الجايي
       # ما تعيده. هذا نفس الدرس المستفاد من تكرار تنبيهات المباريات في التطبيق.
@@ -106,5 +125,10 @@ jobs:
           git config user.name "tactiq-bot"
           git config user.email "bot@tactiq.local"
           git add match-bot/state || true
-          git commit -m "chore: match-bot state [skip ci]" || echo "no changes"
-          git push || echo "nothing to push"
+          git commit -m "chore: match-bot state [skip ci]" || { echo "no changes"; exit 0; }
+          # النشر يكتب بنفس المستودع: سحب قبل الدفع، وإلّا الدفع بيرفض والحالة بتضيع
+          for i in 1 2 3; do
+            git pull --rebase --autostash && git push && exit 0
+            sleep $((i * 5))
+          done
+          echo "::warning title=match-bot::could not push bot state"

@@ -44,17 +44,37 @@ const ORDER = [
 ];
 
 const SEASON = Number(process.env.SEASON || new Date().getUTCFullYear());
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-let calls = 0;
 
-async function api(path) {
-  calls++;
-  const res = await fetch(HOST + path, { headers: { 'x-apisports-key': KEY } });
-  const body = await res.json();
-  if (body.errors && !Array.isArray(body.errors) && Object.keys(body.errors).length) {
-    throw new Error('provider: ' + JSON.stringify(body.errors));
+/**
+ * ── المصدر ──────────────────────────────────────────────────────────────
+ * على الباقة المجّانيّة: football-data.org. السبب مقيس من سجلّ GitHub (2026-11-25):
+ * API-Football المجّانيّ رجّع لكلّ البطولات التسعة
+ *     "Free plans do not have access to this season, try from 2022 to 2024."
+ * فالسكربت كان يدفع **شجرة فاضية** ويمسح ما في التطبيق. football-data المجّانيّ
+ * يعطي الموسم الحاليّ (مونديال 2026: 104 مباريات بأدوارها) وبلا سقف يوميّ.
+ * يغطّي ثلاث بطولات من التسعة: المونديال · أبطال أوروبا · أمم أوروبا. الباقي
+ * يرجع لمّا يرجع المدفوع (API_PLAN=paid).
+ */
+const { createClient, IS_FREE, ProviderStop, stopGracefully } = require('./provider');
+const FD = require('./football-data');
+
+/** رمز البطولة في التطبيق ← رمزها عند football-data. */
+const FD_CODE = { WC: 'WC', CL: 'CL', EURO: 'EC' };
+
+const client = createClient({ label: 'push-knockout', maxCalls: COMPS.length });
+
+/** مباريات البطولة بشكل API-Football، ومعها الموسم. */
+async function loadRows(comp) {
+  if (IS_FREE) {
+    const code = FD_CODE[comp.code];
+    if (!code) return null;   // خارج تغطية football-data المجّانيّة
+    const body = await FD.fd(`/competitions/${code}/matches`);
+    const ms = body.matches || [];
+    const start = ms[0] && ms[0].season && ms[0].season.startDate;
+    const season = (body.filters && Number(body.filters.season)) || (start ? Number(start.slice(0, 4)) : SEASON);
+    return { rows: ms.map(FD.toFixture), season };
   }
-  return body.response || [];
+  return { rows: await client.api(`/fixtures?league=${comp.id}&season=${SEASON}`), season: SEASON };
 }
 
 const done = (s) => ['FT', 'AET', 'PEN'].includes(s);
@@ -130,15 +150,22 @@ function toTies(fixtures) {
 }
 
 (async () => {
-  if (!KEY) { console.error('FOOTBALL_API_KEY missing'); process.exit(1); }
+  if (IS_FREE) console.log('source: football-data.org (free plan — 0 API-Football calls)');
+  else await client.preflight(COMPS.length);
 
   const out = {};
+  let fetchedOk = 0;
   for (const comp of COMPS) {
-    await sleep(400);
     let rows = [];
+    let season = SEASON;
     try {
-      rows = await api(`/fixtures?league=${comp.id}&season=${SEASON}`);
+      const got = await loadRows(comp);
+      if (!got) { console.log(`  · ${comp.name}: not on the free source — skipped`); continue; }
+      rows = got.rows;
+      season = got.season;
+      fetchedOk++;
     } catch (e) {
+      if (e instanceof ProviderStop) throw e;   // حساب موقوف/حصّة/باقة: وقوف بلا دفع
       console.log(`  ✖ ${comp.name}: ${e.message}`);
       continue;
     }
@@ -189,13 +216,45 @@ function toTies(fixtures) {
     }
 
 
-    out[comp.code] = { name: comp.name, leagueId: comp.id, season: SEASON, stages };
+    out[comp.code] = { name: comp.name, leagueId: comp.id, season, stages };
     const total = stages.reduce((n, s) => n + s.ties.length, 0);
     const linked = stages.slice(1).reduce((n, s) => n + s.ties.filter((t) => (t.from || []).some(Boolean)).length, 0);
     console.log(`  ${comp.name}: ${stages.length} stages · ${total} ties · linked ${linked}`);
   }
 
-  console.log(`\nprovider calls: ${calls} · competitions with a bracket: ${Object.keys(out).length}`);
+  // البطولات اللي ما انبنت هالجولة (فشل نداء، أو خارج المصدر المجّانيّ) تبقى بنسختها
+  // الموجودة على السيرفر، بدل ما يمسحها الدفع.
+  if (WORKER && Object.keys(out).length) {
+    for (const comp of COMPS) {
+      if (out[comp.code]) continue;
+      try {
+        const r = await fetch(`${WORKER}/football/knockout?comp=${comp.code}`);
+        const b = r.ok ? await r.json() : null;
+        if (b && Array.isArray(b.stages) && b.stages.length) {
+          out[comp.code] = { name: b.name || comp.name, leagueId: b.leagueId || comp.id, season: b.season, stages: b.stages };
+          console.log(`  ↺ ${comp.name}: kept the server copy`);
+        }
+      } catch {}
+    }
+  }
+
+  console.log(`\nAPI-Football calls: ${client.calls} · football-data calls: ${FD.calls} · competitions with a bracket: ${Object.keys(out).length}`);
+  // شجرة فاضية ما تندفع أبدًا: كانت تمسح ما في التطبيق (عطل 2026-11-25).
+  if (!fetchedOk || !Object.keys(out).length) {
+    console.log('nothing to push — the server copy is left untouched.');
+    return;
+  }
+  if (process.argv.includes('--show')) {
+    for (const [code, b] of Object.entries(out)) {
+      for (const s of b.stages) {
+        const line = s.ties.map((t) => {
+          const w = t.teams.find((x) => x.id === t.winnerId);
+          return `${t.teams[0].name} ${t.aggregate ? t.aggregate.join('-') : '?'} ${t.teams[1].name}${w ? ' →' + w.name : ''}`;
+        });
+        console.log(`  [${code}] ${s.round}: ${line.slice(0, 4).join(' · ')}${line.length > 4 ? ' …' : ''}`);
+      }
+    }
+  }
   if (!PUSH) { console.log('(dry run — add --push to send)'); return; }
   if (!WORKER || !TOKEN) { console.error('WORKER_URL or INGEST_TOKEN missing'); process.exit(1); }
 
@@ -206,4 +265,8 @@ function toTies(fixtures) {
   });
   console.log(`push → HTTP ${res.status} ${await res.text()}`);
   if (!res.ok) process.exit(1);
-})().catch((e) => { console.error('push-knockout failed:', e.message || e); process.exit(1); });
+})().catch((e) => {
+  if (stopGracefully('push-knockout', e)) return;
+  console.error('push-knockout failed:', e.message || e);
+  process.exit(1);
+});

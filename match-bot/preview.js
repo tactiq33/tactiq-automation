@@ -6,15 +6,18 @@
  *   node preview.js                 # قمم اليوم (معاينة)
  *   node preview.js --send          # يبعت على تيليغرام
  *   node preview.js 2026-07-18 --send
+ *
+ * ── المصدر ──────────────────────────────────────────────────────────────
+ * على الباقة المجّانيّة (API_PLAN=free، الافتراضيّ): football-data.org — مجّانيّ بلا
+ * سقف يوميّ ويغطّي الموسم الحاليّ ⇒ صفر نداء من حصّة API-Football (100/يوم).
+ * على المدفوع (API_PLAN=paid): API-Football (نداء واحد، يغطّي السعوديّ وغيره)، وإذا
+ * رفض لأيّ سبب يرجع لـfootball-data بدل ما يفشل.
  */
 require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env') });
-const fs = require('fs');
-const path = require('path');
 const { build, formatMessage, sendTelegram } = require('./notify');
+const { createClient, IS_FREE, ProviderStop } = require('./provider');
+const FD = require('./football-data');
 
-const KEY = process.env.FOOTBALL_API_KEY;
-const HOST = 'https://v3.football.api-sports.io';
-const RULES = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'content-rules.json'), 'utf8'));
 const SEND = process.argv.includes('--send');
 const dateArg = process.argv.find((a) => /^\d{4}-\d{2}-\d{2}$/.test(a));
 const DATE = dateArg || new Date().toISOString().slice(0, 10);
@@ -23,13 +26,6 @@ const DATE = dateArg || new Date().toISOString().slice(0, 10);
 // للأندية. النسخة السابقة كانت هنا محلّيًّا، وهي التي مرّقت دوري البرازيل.
 const { bigMatch } = require('./rules');
 
-async function api(p) {
-  const res = await fetch(HOST + p, { headers: { 'x-apisports-key': KEY } });
-  const j = await res.json();
-  if (j.errors && Object.keys(j.errors).length) throw new Error(JSON.stringify(j.errors));
-  return j;
-}
-
 // هل هالمباراة قمّة؟ يرجّع {big, title} أو null
 function bigFixture(f) {
   const h = f.teams.home.name, a = f.teams.away.name;
@@ -37,15 +33,44 @@ function bigFixture(f) {
   return bigMatch({ league: f.league, home: h, away: a, round: f.league.round });
 }
 
+async function fromFootballData() {
+  const next = new Date(Date.parse(DATE + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
+  const body = await FD.fd(`/matches?dateFrom=${DATE}&dateTo=${next}`);
+  return (body.matches || [])
+    .filter((m) => String(m.utcDate || '').slice(0, 10) === DATE)
+    .map(FD.toFixture);
+}
+
+async function fromApiFootball() {
+  const client = createClient({ label: 'preview', maxCalls: 1 });
+  await client.preflight(1);
+  return client.api(`/fixtures?date=${DATE}`);
+}
+
+async function loadFixtures() {
+  if (IS_FREE) {
+    console.log('source: football-data.org (free plan — 0 API-Football calls)');
+    return fromFootballData();
+  }
+  try {
+    const list = await fromApiFootball();
+    console.log('source: API-Football');
+    return list;
+  } catch (e) {
+    const why = e instanceof ProviderStop ? e.message : String(e.message || e);
+    console.log(`API-Football unavailable (${why}) — falling back to football-data.org`);
+    return fromFootballData();
+  }
+}
+
 (async () => {
-  if (!KEY) { console.error('❌ FOOTBALL_API_KEY ناقص'); process.exit(1); }
-  const j = await api(`/fixtures?date=${DATE}`);
-  const fixtures = j.response || [];
+  const fixtures = await loadFixtures();
   const bigs = [];
   for (const f of fixtures) {
     const b = bigFixture(f);
     if (b) bigs.push({ f, title: b.title });
   }
+  console.log(`fixtures on ${DATE}: ${fixtures.length}`);
   if (bigs.length === 0) { console.log(`ℹ️ ما في قمم مميّزة بتاريخ ${DATE}.`); return; }
 
   console.log(`🔥 ${bigs.length} قمّة اليوم (${DATE}):`);
@@ -70,4 +95,8 @@ function bigFixture(f) {
       catch (e) { console.log('⚠️ تعذّر البعث:', e.message); }
     }
   }
-})().catch((e) => { console.error('❌ خطأ:', e.message || e); });
+})().catch((e) => {
+  // المعاينة تذكير صباحيّ: فشل مصدر لا يجب أن يُسقط الـworkflow، بس لازم ينقرا السبب.
+  console.error('❌ preview: ' + (e.message || e));
+  if (process.env.GITHUB_ACTIONS) console.log(`::warning title=preview::${e.message || e}`);
+});

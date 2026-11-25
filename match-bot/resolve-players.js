@@ -25,12 +25,13 @@ const FILE = path.resolve(__dirname, '..', '..', 'TactIQ2', 'data', 'players.jso
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-async function api(p) {
-  const res = await fetch(HOST + p, { headers: { 'x-apisports-key': KEY } });
-  const j = await res.json();
-  if (j.errors && !Array.isArray(j.errors) && Object.keys(j.errors).length) throw new Error(JSON.stringify(j.errors));
-  return j.response || [];
-}
+// نداء لكلّ لاعب بلا رقم ⇒ على المجّانيّ سقف للتشغيلة (--max=N، افتراضيّ 40) ويكمّل
+// الباقي بتشغيلة تانية (اللي انربطوا ما بيتسألوا مرّة تانية).
+const { createClient, IS_FREE, ProviderStop, stopGracefully } = require('./provider');
+const maxArg = (process.argv.find((a) => a.startsWith('--max=')) || '').split('=')[1];
+const MAX = Number(maxArg || (IS_FREE ? 40 : 500));
+const client = createClient({ label: 'resolve-players', maxCalls: MAX });
+const api = (p) => client.api(p);
 
 /**
  * البحث يرجّع مئات النتائج لاسم شائع، فالاختيار **ليس أوّل نتيجة**:
@@ -50,11 +51,12 @@ function pick(rows, fullName) {
 }
 
 (async () => {
-  if (!KEY) { console.error('FOOTBALL_API_KEY missing'); process.exit(1); }
-
   const data = JSON.parse(fs.readFileSync(FILE, 'utf8'));
   const list = data.players || [];
   console.log(`players in app catalogue: ${list.length}`);
+  const todo = list.filter((p) => !p.apiId).length;
+  if (!todo) { console.log('every player already has an apiId — nothing to ask the provider.'); return; }
+  await client.preflight(Math.min(todo, MAX));
 
   let resolved = 0, kept = 0, failed = 0;
   for (const p of list) {
@@ -65,9 +67,9 @@ function pick(rows, fullName) {
     const words = norm(p.name_en).replace(/[^a-z\s]/g, '').split(/\s+/).filter((w) => w.length >= 4);
     const term = words.sort((a, b) => b.length - a.length)[0];
     if (!term) { failed++; console.log(`  ✖ ${p.name_en}: no searchable word`); continue; }
+    if (client.calls >= MAX) { console.log(`  … per-run cap of ${MAX} reached — run again to continue`); break; }
     try {
-      await sleep(400);   // المزوّد يرفض الدفعات السريعة (مقيس)
-      const rows = await api(`/players/profiles?search=${encodeURIComponent(term)}`);
+      const rows = await api(`/players/profiles?search=${encodeURIComponent(term)}`);   // التباعد داخل العميل
       const hit = pick(rows, p.name_en);
       if (hit) {
         p.apiId = hit.id;
@@ -78,6 +80,7 @@ function pick(rows, fullName) {
         console.log(`  ✖ ${p.name_en}: no match`);
       }
     } catch (e) {
+      if (e instanceof ProviderStop) { console.log(`  ■ stopped: ${e.message}`); break; }   // اللي انربط بينحفظ
       failed++;
       console.log(`  ✖ ${p.name_en}: ${e.message}`);
     }
@@ -88,4 +91,4 @@ function pick(rows, fullName) {
 
   fs.writeFileSync(FILE, JSON.stringify(data, null, 2) + '\n');
   console.log('written:', FILE);
-})().catch((e) => { console.error('failed:', e.message || e); process.exit(1); });
+})().catch((e) => { if (stopGracefully('resolve-players', e)) return; console.error('failed:', e.message || e); process.exit(1); });

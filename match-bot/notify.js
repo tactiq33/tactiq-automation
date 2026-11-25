@@ -192,7 +192,9 @@ function narrative(ev) {
 // ===== يبني الفكرة + البرومت + الكابشن حسب نوع الحدث =====
 function build(ev) {
   const hf = codeToEmoji(ev.home.code), af = codeToEmoji(ev.away.code);
-  const scoreLine = `${hf} ${ev.home.name} ${ev.home.score}-${ev.away.score} ${ev.away.name} ${af}`;
+  // معاينة قبل المباراة ما فيها نتيجة: كانت تطلع «undefined-undefined» بالرسالة.
+  const noScore = ev.home.score == null || ev.away.score == null;
+  const scoreLine = `${hf} ${ev.home.name} ${noScore ? 'vs' : ev.home.score + '-' + ev.away.score} ${ev.away.name} ${af}`.trim();
   const kit = kitDesc(ev);
   const player = ev.playerEn || ev.player || 'a footballer';
   const persona = ev.playerDesc ? `, ${ev.playerDesc}` : ''; // وصف/شخصيّة اللاعب لو متوفّرة

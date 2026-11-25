@@ -15,12 +15,6 @@
  * ⚠️ نداء واحد فقط للـAPI (fixtures?live=all)، حتى تبقى الكلفة دقيقة ومعروفة.
  */
 require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env') });
-const fs = require('fs');
-const path = require('path');
-
-const KEY = process.env.FOOTBALL_API_KEY;
-const HOST = 'https://v3.football.api-sports.io';
-const RULES = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'content-rules.json'), 'utf8'));
 
 function arg(name, def) {
   const a = process.argv.find((x) => x.startsWith('--' + name));
@@ -34,21 +28,20 @@ const MIN_WEIGHT = parseFloat(arg('min', '2'));
 // نفس طبقة القرار المستعملة في `preview.js` و`decide.js`.
 const { isBigClub, rivalryOf, leagueWeight, isKnockout } = require('./rules');
 const isRivalry = (h, a) => !!rivalryOf(h, a);
-
-async function api(p) {
-  const res = await fetch(HOST + p, { headers: { 'x-apisports-key': KEY } });
-  const j = await res.json();
-  if (j.errors && Object.keys(j.errors).length) throw new Error(JSON.stringify(j.errors));
-  return j;
-}
+const { createClient, IS_FREE, stopGracefully, pausedOnFreePlan } = require('./provider');
 
 (async () => {
-  if (!KEY) {
-    console.error('FOOTBALL_API_KEY missing');
-    process.exit(1);
+  // ⚠️ الباقة المجّانيّة (100 نداء/يوم) ما بتساع المراقبة: جولة كلّ 10 دقائق = نداء
+  // هون + نداءين لكلّ مباراة ⇒ ~300 نداء باليوم. فتنطفي بهدوء: لا أرقام على stdout،
+  // فالـworkflow يقرأ «لا مباراة» ويكمّل بلا فشل.
+  if (IS_FREE) {
+    pausedOnFreePlan('live-ids', 'Live match watching needs ~300 calls/day; the free plan has 100. Set API_PLAN=paid after upgrading.');
+    return;
   }
 
-  const j = await api('/fixtures?live=all');
+  const client = createClient({ label: 'live-ids', maxCalls: 1 });
+  await client.preflight(1);
+  const j = { response: await client.api('/fixtures?live=all') };
   const rows = (j.response || []).map((fx) => {
     const home = fx.teams.home.name;
     const away = fx.teams.away.name;
@@ -98,6 +91,8 @@ async function api(p) {
     console.log('  (لا شي يستحقّ — كلّها تحت حدّ الأولويّة)');
   }
 })().catch((e) => {
+  // stdout يبقى فاضي بقصد: الـworkflow يستهلك الأرقام منه فقط.
+  if (stopGracefully('live-ids', e)) return;
   console.error('live-ids failed:', e.message);
   process.exit(1);
 });

@@ -42,17 +42,20 @@ const MAX_NEW_FINISHED = 6;
 const LIVE = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'SUSP', 'INT', 'LIVE'];
 const DONE = ['FT', 'AET', 'PEN'];
 
-let calls = 0;
+/**
+ * ⚠️ الباقة المجّانيّة (2026-11-25): هذا الساحب **موقوف** عليها، لثلاثة أسباب مقيسة:
+ *  1. المجّانيّ يرفض الموسم الحاليّ («Free plans do not have access to this season»).
+ *  2. الجولة الواحدة 1–7 نداءات للقائمة + 4 لكلّ مباراة، كلّ 5 دقائق ⇒ آلاف باليوم.
+ *  3. أوّل ما يُدفَع مخزون للسيرفر، مؤقّت النتائج في الـWorker (live-scores.js) يبلّش
+ *     يسأل المزوّد كلّ دقيقة خلال المباريات ⇒ الـ100 بتخلص بساعة ونصّ.
+ * والتطبيق ما بيخسر شي أساسيّ: لمّا مخزوننا فاضي بيقرا المباريات من football-data
+ * مباشرة (fetchMatchesSmart → legacy). الناقص بس التشكيلات والأحداث والتقييمات.
+ */
+const { createClient, IS_FREE, ProviderStop, stopGracefully, pausedOnFreePlan } = require('./provider');
 
-async function api(path) {
-  calls++;
-  const res = await fetch(HOST + path, { headers: { 'x-apisports-key': KEY } });
-  const body = await res.json();
-  if (body.errors && !Array.isArray(body.errors) && Object.keys(body.errors).length) {
-    throw new Error('provider: ' + JSON.stringify(body.errors));
-  }
-  return body.response || [];
-}
+/** أقصى نداءات للجولة: 7 للنافذة + (8 جارية + 6 منتهية) × 4 × محاولتين. */
+const client = createClient({ label: 'push-app-data', maxCalls: 7 + (MAX_LIVE + MAX_NEW_FINISHED) * 4 * 2 });
+const api = (p) => client.api(p);
 
 /* ───────────────────────── تصغير الخرج ───────────────────────── */
 // التطبيق يعرض هذا فقط، والجواب الخام ضخم ويُحمَّل على شبكة الهاتف بلا فائدة.
@@ -182,7 +185,11 @@ async function detailsFor(id) {
 }
 
 (async () => {
-  if (!KEY) { console.error('FOOTBALL_API_KEY missing'); process.exit(1); }
+  if (IS_FREE) {
+    pausedOnFreePlan('push-app-data', 'The free plan has no current-season access, and a pushed snapshot would make the server poll the provider every minute. The app falls back to football-data.org on its own.');
+    return;
+  }
+  await client.preflight(20);
 
   /**
    * ⚠️ نافذة أيّام لا يومًا واحدًا — عطل وصل للمالك:
@@ -241,6 +248,7 @@ async function detailsFor(id) {
       details[String(m.id)] = await detailsFor(m.id);
       console.log(`  details ✔ ${m.id}  ${m.home.name} ${m.home.score}-${m.away.score} ${m.away.name}  [${m.status}]`);
     } catch (e) {
+      if (e instanceof ProviderStop) throw e;   // حساب موقوف/حصّة خلصت: لا إعادة ولا دفع
       failed.push(m);
       console.log(`  details ✖ ${m.id}: ${e.message}`);
     }
@@ -256,13 +264,14 @@ async function detailsFor(id) {
         details[String(m.id)] = await detailsFor(m.id);
         console.log(`  retry ✔ ${m.id}`);
       } catch (e) {
+        if (e instanceof ProviderStop) throw e;
         console.log(`  retry ✖ ${m.id}: ${e.message}`);
       }
     }
   }
 
   const snapshot = { generatedAt: new Date().toISOString(), matches, details };
-  console.log(`provider calls this run: ${calls} · matches: ${matches.length} · details: ${Object.keys(details).length}`);
+  console.log(`provider calls this run: ${client.calls} · matches: ${matches.length} · details: ${Object.keys(details).length}`);
 
   if (!PUSH) { console.log('(dry run — add --push to send)'); return; }
   if (!WORKER || !TOKEN) { console.error('WORKER_URL or INGEST_TOKEN missing'); process.exit(1); }
@@ -276,6 +285,7 @@ async function detailsFor(id) {
   console.log(`push → HTTP ${res.status} ${out}`);
   if (!res.ok) process.exit(1);
 })().catch((e) => {
+  if (stopGracefully('push-app-data', e)) return;
   console.error('push-app-data failed:', e.message || e);
   process.exit(1);
 });
