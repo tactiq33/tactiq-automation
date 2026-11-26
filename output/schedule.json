@@ -1452,7 +1452,13 @@
     "caption_en": "All of football in your pocket ⚽ live scores, calendar, news & transfers, tables & top scorers.",
     "hashtags": "#TactIQ #FootballCoaching #كرة_قدم #تدريب_كرة_القدم",
     "week": 16,
-    "status": "pending"
+    "status": "done",
+    "done_platforms": [
+      "facebook",
+      "instagram"
+    ],
+    "published_at": "2026-11-26T00:47:31.276Z",
+    "result": "FB video id: 1374810174621273 | IG reel id: 18118255484602773"
   },
   {
     "date": "2026-11-27",
